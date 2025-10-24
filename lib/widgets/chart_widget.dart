@@ -1,0 +1,1 @@
+// Chart widget for displaying stock charts in StockDrop app

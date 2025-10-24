@@ -1,0 +1,1 @@
+// Supabase service for backend integration in StockDrop app

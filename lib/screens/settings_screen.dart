@@ -1,0 +1,1 @@
+// Settings screen for StockDrop app
