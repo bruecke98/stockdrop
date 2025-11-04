@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StockDrop</string>
+    <string name="widget_description">Shows the stock with the biggest decline today</string>
+    <string name="gold_widget_description">Shows current gold price with 30-day chart</string>
+</resources>

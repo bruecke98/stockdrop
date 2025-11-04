@@ -12,12 +12,12 @@ import 'screens/search_screen.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/settings_screen.dart';
-import 'screens/insights_screen.dart';
 
 // Import providers
 import 'providers/stock_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/auth_provider.dart';
+import 'services/widget_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +35,9 @@ void main() async {
 
     // Initialize OneSignal
     await _initializeOneSignal();
+
+    // Initialize widget service for Android home screen widget
+    await WidgetService.initialize();
 
     runApp(const StockDropApp());
   } catch (e) {
@@ -134,14 +137,6 @@ class StockDropApp extends StatelessWidget {
         final symbol = args?['symbol'] as String?;
         return MaterialPageRoute(
           builder: (context) => DetailScreen(symbol: symbol),
-          settings: settings,
-        );
-      case '/insights':
-        // Extract stock symbol from arguments
-        final args = settings.arguments as Map<String, dynamic>?;
-        final symbol = args?['symbol'] as String?;
-        return MaterialPageRoute(
-          builder: (context) => InsightsScreen(symbol: symbol),
           settings: settings,
         );
       default:

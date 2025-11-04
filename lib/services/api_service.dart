@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/stock.dart';
+import '../models/gold.dart';
 
 /// API service for FMP (Financial Modeling Prep) API integration in StockDrop app
 /// Handles all stock market data API calls with comprehensive error handling
@@ -85,6 +86,74 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Error in getLosers: $e');
       throw ApiException('Failed to fetch losing stocks', 0, e.toString());
+    }
+  }
+
+  /// Get top declining stocks (any decline percentage) for widgets
+  ///
+  /// Returns list of stocks sorted by decline percentage, including any decline
+  /// This is useful for widgets that need to show at least one stock
+  Future<List<Stock>> getTopDecliningStocks() async {
+    try {
+      debugPrint('🔍 Fetching top declining stocks for widget...');
+
+      // Step 1: Get stock screener results with filters
+      final screenerUrl = Uri.parse(
+        '$_baseUrl/stock-screener'
+        '?marketCapMoreThan=100000000' // Lower threshold for more results
+        '&volumeMoreThan=100000' // Lower threshold for more results
+        '&limit=50'
+        '&apikey=$_apiKey',
+      );
+
+      final screenerResponse = await http.get(screenerUrl);
+
+      if (screenerResponse.statusCode != 200) {
+        throw ApiException(
+          'Stock screener failed',
+          screenerResponse.statusCode,
+          screenerResponse.body,
+        );
+      }
+
+      final List<dynamic> screenerData = json.decode(screenerResponse.body);
+
+      if (screenerData.isEmpty) {
+        debugPrint('📊 No stocks found in screener');
+        return [];
+      }
+
+      // Extract symbols for quote lookup
+      final symbols = screenerData
+          .take(30) // Limit to first 30 for performance
+          .map((item) => item['symbol']?.toString())
+          .where((symbol) => symbol != null && symbol.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      if (symbols.isEmpty) {
+        debugPrint('📊 No valid symbols found');
+        return [];
+      }
+
+      // Step 2: Get real-time quotes for these symbols
+      final quotes = await _getMultipleQuotes(symbols);
+
+      // Step 3: Sort all stocks by percentage change (declining first)
+      final allStocks = quotes.toList()
+        ..sort((a, b) => a.changePercent.compareTo(b.changePercent));
+
+      final result = allStocks.take(10).toList();
+      debugPrint(
+        '📉 Found ${result.length} stocks, top decline: ${result.isNotEmpty ? result.first.changePercent.toStringAsFixed(2) : 'none'}%',
+      );
+
+      return result;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ Error in getTopDecliningStocks: $e');
+      throw ApiException('Failed to fetch declining stocks', 0, e.toString());
     }
   }
 
@@ -426,273 +495,191 @@ class ApiService {
     }
   }
 
-  // ==================== INSIGHTS METHODS ====================
+  // ==================== GOLD COMMODITY METHODS ====================
 
-  /// Get comprehensive insights for a stock including ESG, analyst data, etc.
-  Future<Map<String, dynamic>> getInsights(String symbol) async {
+  /// Get current gold price data
+  ///
+  /// Fetches real-time gold price (GCUSD) from FMP API
+  /// Returns Gold object with current price, change, and percentage change
+  Future<Gold?> getGoldPrice() async {
     try {
-      debugPrint('🔍 Fetching insights for $symbol...');
-      debugPrint('🔑 Using API key: ${_apiKey.substring(0, 8)}...');
+      debugPrint('🥇 Fetching current gold price...');
 
-      final insights = <String, dynamic>{};
-
-      // Test API connectivity first
-      final healthCheck = await checkApiHealth();
-      if (!healthCheck) {
-        debugPrint('⚠️ API health check failed - continuing anyway');
-      }
-
-      // Fetch multiple data sources in parallel with timeout
-      final futures = [
-        _fetchESGScore(symbol).timeout(const Duration(seconds: 15)),
-        _fetchAnalystEstimates(symbol).timeout(const Duration(seconds: 15)),
-        _fetchInstitutionalOwnership(
-          symbol,
-        ).timeout(const Duration(seconds: 15)),
-        _fetchInsiderTrading(symbol).timeout(const Duration(seconds: 15)),
-        _fetchEconomicCalendar().timeout(const Duration(seconds: 15)),
-        _fetchMergersAcquisitions().timeout(const Duration(seconds: 15)),
-        _fetchCompanyProfile(symbol).timeout(
-          const Duration(seconds: 15),
-        ), // Add company profile as fallback
-      ];
-
-      final results = await Future.wait(futures, eagerError: false);
-
-      insights['esgScore'] = results[0];
-      insights['analystEstimates'] = results[1];
-      insights['institutionalOwnership'] = results[2];
-      insights['insiderTrading'] = results[3];
-      insights['economicCalendar'] = results[4];
-      insights['mergersAcquisitions'] = results[5];
-      insights['companyProfile'] = results[6]; // Additional company info
-
-      // Log what we actually got
-      final availableData = insights.entries
-          .where(
-            (entry) =>
-                entry.value != null &&
-                (entry.value is! List || (entry.value as List).isNotEmpty) &&
-                (entry.value is! Map || (entry.value as Map).isNotEmpty),
-          )
-          .map((entry) => entry.key)
-          .toList();
-
-      debugPrint('✅ Successfully fetched insights for $symbol');
-      debugPrint('📊 Available data: ${availableData.join(', ')}');
-
-      return insights;
-    } catch (e) {
-      debugPrint('❌ Error fetching insights for $symbol: $e');
-      throw ApiException('Failed to fetch insights', 500, e.toString());
-    }
-  }
-
-  /// Fetch company profile as additional insight
-  Future<Map<String, dynamic>?> _fetchCompanyProfile(String symbol) async {
-    try {
-      debugPrint('🏢 Fetching company profile for $symbol...');
-      final url = Uri.parse('$_baseUrl/profile/$symbol?apikey=$_apiKey');
-      debugPrint('🌐 Profile URL: $url');
-
+      final url = Uri.parse('$_baseUrl/quote/GCUSD?apikey=$_apiKey');
       final response = await http.get(url);
-      debugPrint('📡 Profile Response status: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        debugPrint('📊 Profile Response data type: ${data.runtimeType}');
-        if (data is List && data.isNotEmpty) {
-          debugPrint('✅ Company profile found for $symbol');
-          return data.first;
-        } else if (data is Map && data.isNotEmpty) {
-          debugPrint('✅ Company profile found for $symbol (as map)');
-          return Map<String, dynamic>.from(data);
-        }
-      } else {
-        debugPrint(
-          '❌ Profile API error: ${response.statusCode} - ${response.body}',
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch gold price',
+          response.statusCode,
+          response.body,
         );
       }
-      debugPrint(
-        '⚠️ Company profile not available for $symbol (status: ${response.statusCode})',
-      );
+
+      final List<dynamic> data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        final goldData = Gold.fromQuoteJson(data.first);
+        debugPrint(
+          '✅ Gold price fetched: ${goldData.formattedPrice} (${goldData.formattedChangePercent})',
+        );
+        return goldData;
+      }
+
+      debugPrint('⚠️ No gold price data available');
       return null;
+    } on ApiException {
+      rethrow;
     } catch (e) {
-      debugPrint('❌ Company profile fetch failed for $symbol: $e');
-      return null;
+      debugPrint('❌ Error fetching gold price: $e');
+      throw ApiException('Failed to fetch gold price', 0, e.toString());
     }
   }
 
-  /// Fetch ESG score for a stock
-  Future<Map<String, dynamic>?> _fetchESGScore(String symbol) async {
+  /// Get historical gold price data for charting
+  ///
+  /// [period] - Time period ('1day', '5day', '1month', '3month', '6month', '1year', '5year')
+  /// Returns list of historical gold price points
+  Future<List<GoldHistoricalPoint>> getGoldHistoricalData({
+    String period = '1month',
+  }) async {
     try {
-      debugPrint('🌱 Fetching ESG score for $symbol...');
-      // FMP uses 'esg-environmental-social-governance-data' endpoint
+      debugPrint('📈 Fetching gold historical data for period: $period');
+
+      // Convert period to from/to dates
+      final now = DateTime.now();
+      DateTime fromDate;
+
+      switch (period) {
+        case '1day':
+          fromDate = now.subtract(const Duration(days: 1));
+          break;
+        case '5day':
+          fromDate = now.subtract(const Duration(days: 5));
+          break;
+        case '1month':
+          fromDate = now.subtract(const Duration(days: 30));
+          break;
+        case '3month':
+          fromDate = now.subtract(const Duration(days: 90));
+          break;
+        case '6month':
+          fromDate = now.subtract(const Duration(days: 180));
+          break;
+        case '1year':
+          fromDate = now.subtract(const Duration(days: 365));
+          break;
+        case '5year':
+          fromDate = now.subtract(const Duration(days: 365 * 5));
+          break;
+        default:
+          fromDate = now.subtract(const Duration(days: 30));
+      }
+
+      final fromDateStr =
+          '${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}';
+      final toDateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
       final url = Uri.parse(
-        '$_baseUrl/esg-environmental-social-governance-data?symbol=$symbol&apikey=$_apiKey',
+        'https://financialmodelingprep.com/api/v3/historical-price-full/GCUSD'
+        '?from=$fromDateStr&to=$toDateStr&apikey=$_apiKey',
       );
-      debugPrint('🌐 ESG URL: $url');
 
       final response = await http.get(url);
-      debugPrint('📡 ESG Response status: ${response.statusCode}');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        debugPrint('📊 ESG Response data type: ${data.runtimeType}');
-        if (data is List && data.isNotEmpty) {
-          debugPrint('✅ ESG data found for $symbol');
-          return data.first;
-        } else if (data is Map && data.isNotEmpty) {
-          debugPrint('✅ ESG data found for $symbol (as map)');
-          return Map<String, dynamic>.from(data);
-        }
-      } else {
-        debugPrint(
-          '❌ ESG API error: ${response.statusCode} - ${response.body}',
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch gold historical data',
+          response.statusCode,
+          response.body,
         );
       }
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      final List<dynamic> historical = data['historical'] ?? [];
+
+      final points =
+          historical.map((json) => GoldHistoricalPoint.fromJson(json)).toList()
+            ..sort(
+              (a, b) => a.date.compareTo(b.date),
+            ); // Sort by date ascending
+
       debugPrint(
-        '⚠️ ESG data not available for $symbol (status: ${response.statusCode})',
+        '✅ Gold historical data fetched: ${points.length} data points',
       );
+      return points;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ Error fetching gold historical data: $e');
+      throw ApiException(
+        'Failed to fetch gold historical data',
+        0,
+        e.toString(),
+      );
+    }
+  }
+
+  /// Get gold price with simple historical endpoint (lighter version)
+  ///
+  /// Uses the /historical-price-eod/light endpoint for basic historical data
+  /// Good for simple price tracking without full historical details
+  Future<Gold?> getGoldPriceLight() async {
+    try {
+      debugPrint('🥇 Fetching gold price (light endpoint)...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/api/v3/historical-price-eod/light'
+        '?symbol=GCUSD&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch gold price (light)',
+          response.statusCode,
+          response.body,
+        );
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        final goldData = Gold.fromHistoricalJson(data.first);
+        debugPrint('✅ Gold price (light) fetched: ${goldData.formattedPrice}');
+        return goldData;
+      }
+
+      debugPrint('⚠️ No gold price data available (light endpoint)');
       return null;
+    } on ApiException {
+      rethrow;
     } catch (e) {
-      debugPrint('❌ ESG score fetch failed for $symbol: $e');
-      return null;
+      debugPrint('❌ Error fetching gold price (light): $e');
+      throw ApiException('Failed to fetch gold price (light)', 0, e.toString());
     }
   }
 
-  /// Fetch analyst estimates for a stock
-  Future<Map<String, dynamic>?> _fetchAnalystEstimates(String symbol) async {
+  /// Get comprehensive gold data combining both endpoints
+  ///
+  /// Combines real-time quote data with light historical data
+  /// Returns the most up-to-date and comprehensive gold information
+  Future<Gold?> getComprehensiveGoldData() async {
     try {
-      // Use analyst-estimates endpoint
-      final url = Uri.parse(
-        '$_baseUrl/analyst-estimates/$symbol?apikey=$_apiKey',
-      );
-      final response = await http.get(url);
+      debugPrint('🥇 Fetching comprehensive gold data...');
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List && data.isNotEmpty) {
-          return data.first;
-        }
+      // Try to get real-time quote first
+      final quoteGold = await getGoldPrice();
+      if (quoteGold != null) {
+        return quoteGold;
       }
-      debugPrint(
-        '⚠️ Analyst estimates not available for $symbol (status: ${response.statusCode})',
-      );
-      return null;
+
+      // Fallback to light endpoint if quote fails
+      debugPrint('⚠️ Quote endpoint failed, trying light endpoint...');
+      return await getGoldPriceLight();
     } catch (e) {
-      debugPrint('❌ Analyst estimates fetch failed for $symbol: $e');
-      return null;
-    }
-  }
-
-  /// Fetch institutional ownership data
-  Future<List<Map<String, dynamic>>> _fetchInstitutionalOwnership(
-    String symbol,
-  ) async {
-    try {
-      // Use institutional-holder endpoint
-      final url = Uri.parse(
-        '$_baseUrl/institutional-holder/$symbol?apikey=$_apiKey',
-      );
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          return List<Map<String, dynamic>>.from(data);
-        }
-      }
-      debugPrint(
-        '⚠️ Institutional ownership not available for $symbol (status: ${response.statusCode})',
-      );
-      return [];
-    } catch (e) {
-      debugPrint('❌ Institutional ownership fetch failed for $symbol: $e');
-      return [];
-    }
-  }
-
-  /// Fetch insider trading data
-  Future<List<Map<String, dynamic>>> _fetchInsiderTrading(String symbol) async {
-    try {
-      // Use insider-trading endpoint
-      final url = Uri.parse(
-        '$_baseUrl/insider-trading?symbol=$symbol&apikey=$_apiKey',
-      );
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          return List<Map<String, dynamic>>.from(data);
-        }
-      }
-      debugPrint(
-        '⚠️ Insider trading not available for $symbol (status: ${response.statusCode})',
-      );
-      return [];
-    } catch (e) {
-      debugPrint('❌ Insider trading fetch failed for $symbol: $e');
-      return [];
-    }
-  }
-
-  /// Fetch economic calendar events
-  Future<List<Map<String, dynamic>>> _fetchEconomicCalendar() async {
-    try {
-      // Use economic_calendar endpoint with date range
-      final today = DateTime.now();
-      final from = today
-          .subtract(const Duration(days: 7))
-          .toIso8601String()
-          .split('T')[0];
-      final to = today
-          .add(const Duration(days: 30))
-          .toIso8601String()
-          .split('T')[0];
-
-      final url = Uri.parse(
-        '$_baseUrl/economic_calendar?from=$from&to=$to&apikey=$_apiKey',
-      );
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          return List<Map<String, dynamic>>.from(data.take(10));
-        }
-      }
-      debugPrint(
-        '⚠️ Economic calendar not available (status: ${response.statusCode})',
-      );
-      return [];
-    } catch (e) {
-      debugPrint('❌ Economic calendar fetch failed: $e');
-      return [];
-    }
-  }
-
-  /// Fetch mergers and acquisitions data
-  Future<List<Map<String, dynamic>>> _fetchMergersAcquisitions() async {
-    try {
-      // Use mergers-acquisitions-rss-feed endpoint - this might be limited or require higher tier
-      final url = Uri.parse(
-        '$_baseUrl/mergers-acquisitions-rss-feed?page=0&apikey=$_apiKey',
-      );
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is List) {
-          return List<Map<String, dynamic>>.from(data.take(10));
-        }
-      }
-      debugPrint('⚠️ M&A data not available (status: ${response.statusCode})');
-      return [];
-    } catch (e) {
-      debugPrint('❌ M&A data fetch failed: $e');
-      return [];
+      debugPrint('❌ Error fetching comprehensive gold data: $e');
+      throw ApiException('Failed to fetch gold data', 0, e.toString());
     }
   }
 

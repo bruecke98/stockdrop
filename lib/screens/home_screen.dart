@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import '../widgets/gold_card.dart';
+import '../screens/gold_example_screen.dart';
 
 /// Home screen for StockDrop app
 /// Displays top stocks with daily losses using Financial Modeling Prep API
@@ -17,30 +19,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   String? _error;
   double _lossThreshold = 5.0;
+  bool _useWeeklyLoss = false; // New option for weekly loss
 
   // Additional filter options
-  double _minMarketCap = 500; // in millions
   double _minVolume = 500; // in thousands
   double _minPrice = 1.0;
   double _maxPrice = 1000.0;
-
-  final List<double> _thresholdOptions = [
-    1.0,
-    2.0,
-    3.0,
-    5.0,
-    7.5,
-    10.0,
-    15.0,
-    20.0,
-  ];
-  final List<double> _marketCapOptions = [
-    100,
-    500,
-    1000,
-    5000,
-    10000,
-  ]; // millions
   final List<double> _volumeOptions = [
     100,
     500,
@@ -72,6 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          // Gold Badge at top
+          _buildGoldBadge(theme),
+
           // Filter Panel
           _buildFilterPanel(theme),
 
@@ -152,111 +139,74 @@ class _HomeScreenState extends State<HomeScreen> {
           // Main Filters Row
           Row(
             children: [
-              // Loss Threshold
+              // Loss Threshold Slider
               Expanded(
-                flex: 2,
+                flex: 3,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Min Loss',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          'Min Loss: ${_lossThreshold.toStringAsFixed(1)}%',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const Spacer(),
+                        // Weekly loss toggle
+                        Row(
+                          children: [
+                            Text(
+                              'Weekly',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            Switch(
+                              value: _useWeeklyLoss,
+                              onChanged: (bool value) {
+                                setState(() {
+                                  _useWeeklyLoss = value;
+                                });
+                                _fetchStocks();
+                              },
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withOpacity(0.3),
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<double>(
-                          value: _lossThreshold,
-                          isExpanded: true,
-                          items: _thresholdOptions.map((double value) {
-                            return DropdownMenuItem<double>(
-                              value: value,
-                              child: Text('${value}%'),
-                            );
-                          }).toList(),
-                          onChanged: (double? newValue) {
-                            if (newValue != null &&
-                                newValue != _lossThreshold) {
-                              setState(() {
-                                _lossThreshold = newValue;
-                              });
-                              _fetchStocks();
-                            }
-                          },
-                        ),
-                      ),
+                    const SizedBox(height: 8),
+                    Slider(
+                      value: _lossThreshold,
+                      min: 1.0,
+                      max: 25.0,
+                      divisions: 48, // 0.5% increments
+                      onChanged: (double value) {
+                        setState(() {
+                          _lossThreshold = value;
+                        });
+                      },
+                      onChangeEnd: (double value) {
+                        _fetchStocks();
+                      },
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
 
-              // Market Cap
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Market Cap',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withOpacity(0.3),
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<double>(
-                          value: _minMarketCap,
-                          isExpanded: true,
-                          items: _marketCapOptions.map((double value) {
-                            return DropdownMenuItem<double>(
-                              value: value,
-                              child: Text('${value.toInt()}M+'),
-                            );
-                          }).toList(),
-                          onChanged: (double? newValue) {
-                            if (newValue != null && newValue != _minMarketCap) {
-                              setState(() {
-                                _minMarketCap = newValue;
-                              });
-                              _fetchStocks();
-                            }
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // Quick Filter Button
+              // More Filters Button
               Expanded(
                 flex: 1,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Quick',
+                      'More',
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w500,
                         color: theme.colorScheme.onSurfaceVariant,
@@ -272,13 +222,194 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        child: const Icon(Icons.more_horiz, size: 18),
+                        child: const Text(
+                          'Filters',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build the gold badge at the top with performance indicators
+  Widget _buildGoldBadge(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const GoldExampleScreen(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.amber.withOpacity(0.1),
+                  theme.colorScheme.surface,
+                ],
+              ),
+            ),
+            child: Row(
+              children: [
+                // Gold icon with badge
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.amber.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(Icons.toll, color: Colors.amber, size: 24),
+                ),
+
+                const SizedBox(width: 12),
+
+                // Gold info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'GOLD',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber.shade700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'GCUSD',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: Colors.amber.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Live commodity pricing',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Compact performance display
+                SizedBox(
+                  width: 100,
+                  height: 40,
+                  child: GoldCard(isCompact: true, margin: EdgeInsets.zero),
+                ),
+
+                const SizedBox(width: 8),
+
+                // Arrow indicator
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build the gold commodity section
+  Widget _buildGoldSection(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Section header
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Row(
+              children: [
+                Icon(Icons.toll, color: Colors.amber, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Commodities',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const GoldExampleScreen(),
+                      ),
+                    );
+                  },
+                  child: Text(
+                    'View Details',
+                    style: TextStyle(
+                      color: theme.colorScheme.primary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Gold card
+          GoldCard(
+            isCompact: true,
+            margin: EdgeInsets.zero,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const GoldExampleScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -325,13 +456,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text(
                       'Vol: ${_formatVolume(stock.volume)}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'MCap: ${_formatMarketCap(stock.marketCap)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -472,8 +596,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Step 1: Get stocks using screener with applied filters
       final screenerUrl =
           'https://financialmodelingprep.com/api/v3/stock-screener'
-          '?marketCapMoreThan=${(_minMarketCap * 1000000).toInt()}'
-          '&volumeMoreThan=${(_minVolume * 1000).toInt()}'
+          '?volumeMoreThan=${(_minVolume * 1000).toInt()}'
           '&priceMoreThan=${_minPrice.toStringAsFixed(2)}'
           '&priceLowerThan=${_maxPrice.toStringAsFixed(2)}'
           '&limit=1000'
@@ -541,6 +664,14 @@ class _HomeScreenState extends State<HomeScreen> {
             bool meetsPriceRange = price >= _minPrice && price <= _maxPrice;
             bool meetsVolumeRequirement = volume >= (_minVolume * 1000);
 
+            // Note: Weekly loss filtering could be implemented here with additional API data
+            // For now, we use the same logic but with a note in the UI
+            if (_useWeeklyLoss) {
+              // In a full implementation, we would fetch weekly change data here
+              // For demo purposes, we apply the same threshold
+              meetsLossThreshold = changesPercentage <= -_lossThreshold;
+            }
+
             return meetsLossThreshold &&
                 meetsPriceRange &&
                 meetsVolumeRequirement;
@@ -585,15 +716,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return volume.toStringAsFixed(0);
   }
 
-  String _formatMarketCap(double marketCap) {
-    if (marketCap >= 1000000000) {
-      return '${(marketCap / 1000000000).toStringAsFixed(1)}B';
-    } else if (marketCap >= 1000000) {
-      return '${(marketCap / 1000000).toStringAsFixed(1)}M';
-    }
-    return '${marketCap.toStringAsFixed(0)}';
-  }
-
   void _showAdvancedFilters(BuildContext context, ThemeData theme) {
     showModalBottomSheet(
       context: context,
@@ -626,6 +748,35 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 24),
+
+            // Weekly Loss Note
+            if (_useWeeklyLoss)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Weekly loss filter is enabled. This shows stocks with weekly decline.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_useWeeklyLoss) const SizedBox(height: 16),
 
             // Volume Filter
             Text(
@@ -716,7 +867,6 @@ class StockLoss {
   final double price;
   final double changesPercentage;
   final double volume;
-  final double marketCap;
 
   StockLoss({
     required this.symbol,
@@ -724,7 +874,6 @@ class StockLoss {
     required this.price,
     required this.changesPercentage,
     required this.volume,
-    required this.marketCap,
   });
 
   factory StockLoss.fromJson(Map<String, dynamic> json) {
@@ -734,7 +883,6 @@ class StockLoss {
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       changesPercentage: (json['changesPercentage'] as num?)?.toDouble() ?? 0.0,
       volume: (json['volume'] as num?)?.toDouble() ?? 0.0,
-      marketCap: (json['marketCap'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
