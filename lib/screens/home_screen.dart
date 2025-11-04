@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import '../widgets/gold_card.dart';
+import '../widgets/commodity_card.dart';
 import '../screens/gold_example_screen.dart';
+import '../screens/silver_example_screen.dart';
+import '../screens/oil_example_screen.dart';
 
 /// Home screen for StockDrop app
 /// Displays top stocks with daily losses using Financial Modeling Prep API
@@ -56,8 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // Gold Badge at top
-          _buildGoldBadge(theme),
+          // Commodities Section at top
+          _buildCommoditiesSection(theme),
 
           // Filter Panel
           _buildFilterPanel(theme),
@@ -238,181 +240,315 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Build the gold badge at the top with performance indicators
-  Widget _buildGoldBadge(ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Card(
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const GoldExampleScreen(),
+  /// Build the commodities section at the top with gold, silver, and oil
+  Widget _buildCommoditiesSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Commodities Heading
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.trending_up,
+                color: theme.colorScheme.primary,
+                size: 20,
               ),
-            );
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  Colors.amber.withOpacity(0.1),
-                  theme.colorScheme.surface,
-                ],
-              ),
-            ),
-            child: Row(
-              children: [
-                // Gold icon with badge
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.amber.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: const Icon(Icons.toll, color: Colors.amber, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Commodities',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
                 ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const GoldExampleScreen(),
+                    ),
+                  );
+                },
+                child: Text(
+                  'View Details',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
 
-                const SizedBox(width: 12),
-
-                // Gold info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
+        // Individual Commodity Cards - Full Width
+        // Gold Card
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GoldExampleScreen(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.amber.withOpacity(0.1),
+                      Colors.amber.withOpacity(0.05),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.amber.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.toll,
+                        color: Colors.amber.shade700,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             'GOLD',
-                            style: theme.textTheme.titleSmall?.copyWith(
+                            style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: Colors.amber.shade700,
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'GCUSD',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: Colors.amber.shade700,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          Text(
+                            'GCUSD',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.amber.shade600,
                             ),
                           ),
                         ],
                       ),
-                      Text(
-                        'Live commodity pricing',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
-                        ),
+                    ),
+                    SizedBox(
+                      width: 100,
+                      height: 40,
+                      child: CommodityCard(
+                        commodityType: 'gold',
+                        isCompact: true,
+                        margin: EdgeInsets.zero,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: Colors.amber.withOpacity(0.6),
+                    ),
+                  ],
                 ),
-
-                // Compact performance display
-                SizedBox(
-                  width: 100,
-                  height: 40,
-                  child: GoldCard(isCompact: true, margin: EdgeInsets.zero),
-                ),
-
-                const SizedBox(width: 8),
-
-                // Arrow indicator
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: theme.colorScheme.onSurface.withOpacity(0.4),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
 
-  /// Build the gold commodity section
-  Widget _buildGoldSection(ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Section header
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Row(
-              children: [
-                Icon(Icons.toll, color: Colors.amber, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Commodities',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface,
+        // Silver Card
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SilverExampleScreen(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.grey.withOpacity(0.15),
+                      Colors.grey.withOpacity(0.08),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.grey.withOpacity(0.3),
+                    width: 1,
                   ),
                 ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const GoldExampleScreen(),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
-                  child: Text(
-                    'View Details',
-                    style: TextStyle(
-                      color: theme.colorScheme.primary,
-                      fontSize: 12,
+                      child: Icon(
+                        Icons.circle,
+                        color: Colors.grey.shade600,
+                        size: 24,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SILVER',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          Text(
+                            'SIUSD',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 100,
+                      height: 40,
+                      child: CommodityCard(
+                        commodityType: 'silver',
+                        isCompact: true,
+                        margin: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
+        ),
 
-          // Gold card
-          GoldCard(
-            isCompact: true,
-            margin: EdgeInsets.zero,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const GoldExampleScreen(),
+        Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OilExampleScreen(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      Colors.black.withOpacity(0.8),
+                      Colors.black.withOpacity(0.6),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: Colors.black.withOpacity(0.2),
+                    width: 1,
+                  ),
                 ),
-              );
-            },
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.local_gas_station,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'OIL',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'BZUSD',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 100,
+                      height: 40,
+                      child: CommodityCard(
+                        commodityType: 'oil',
+                        isCompact: true,
+                        margin: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/stock.dart';
 import '../models/gold.dart';
+import '../models/commodity.dart';
 
 /// API service for FMP (Financial Modeling Prep) API integration in StockDrop app
 /// Handles all stock market data API calls with comprehensive error handling
@@ -680,6 +681,133 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Error fetching comprehensive gold data: $e');
       throw ApiException('Failed to fetch gold data', 0, e.toString());
+    }
+  }
+
+  // ==================== COMMODITY METHODS ====================
+
+  /// Get current commodity price data
+  ///
+  /// Fetches real-time commodity price from FMP API
+  /// Supports gold (GCUSD), silver (SIUSD), and oil (BZUSD)
+  Future<Commodity?> getCommodityPrice(String type) async {
+    try {
+      final symbol = _getCommoditySymbol(type);
+      debugPrint('💰 Fetching current $type price ($symbol)...');
+
+      final url = Uri.parse('$_baseUrl/quote/$symbol?apikey=$_apiKey');
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch $type price',
+          response.statusCode,
+          response.body,
+        );
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      if (data.isNotEmpty) {
+        final commodityData = Commodity.fromQuoteJson(data.first, type);
+
+        debugPrint(
+          '✅ $type price fetched: ${commodityData.formattedPrice} (${commodityData.formattedChangePercent})',
+        );
+
+        return commodityData;
+      } else {
+        debugPrint('⚠️ No $type price data available');
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error fetching $type price: $e');
+      throw ApiException('Failed to fetch $type price', 0, e.toString());
+    }
+  }
+
+  /// Get all commodity prices (gold, silver, oil)
+  Future<Map<String, Commodity?>> getAllCommodityPrices() async {
+    final results = <String, Commodity?>{};
+
+    final commodities = ['gold', 'silver', 'oil'];
+
+    for (final commodity in commodities) {
+      try {
+        results[commodity] = await getCommodityPrice(commodity);
+      } catch (e) {
+        debugPrint('❌ Failed to fetch $commodity: $e');
+        results[commodity] = null;
+      }
+    }
+
+    return results;
+  }
+
+  /// Get commodity symbol for API calls
+  String _getCommoditySymbol(String type) {
+    switch (type.toLowerCase()) {
+      case 'gold':
+        return 'GCUSD';
+      case 'silver':
+        return 'SIUSD';
+      case 'oil':
+        return 'BZUSD';
+      default:
+        throw ArgumentError('Unsupported commodity type: $type');
+    }
+  }
+
+  /// Get historical commodity data for charting
+  Future<List<CommodityHistoricalPoint>> getCommodityHistoricalData(
+    String type, {
+    int days = 30,
+  }) async {
+    try {
+      final symbol = _getCommoditySymbol(type);
+      debugPrint('📈 Fetching $type historical data for $days days...');
+
+      final fromDate = DateTime.now().subtract(Duration(days: days + 5));
+      final toDate = DateTime.now();
+
+      final fromStr =
+          '${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}';
+      final toStr =
+          '${toDate.year}-${toDate.month.toString().padLeft(2, '0')}-${toDate.day.toString().padLeft(2, '0')}';
+
+      final url = Uri.parse(
+        '$_baseUrl/historical-price-full/$symbol?from=$fromStr&to=$toStr&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch $type historical data',
+          response.statusCode,
+          response.body,
+        );
+      }
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      final List<dynamic> historical = data['historical'] ?? [];
+
+      final points = historical
+          .take(days)
+          .map((point) => CommodityHistoricalPoint.fromJson(point))
+          .toList()
+          .reversed
+          .toList();
+
+      debugPrint('✅ Fetched ${points.length} $type historical data points');
+      return points;
+    } catch (e) {
+      debugPrint('❌ Error fetching $type historical data: $e');
+      throw ApiException(
+        'Failed to fetch $type historical data',
+        0,
+        e.toString(),
+      );
     }
   }
 
