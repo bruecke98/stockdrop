@@ -114,6 +114,8 @@ class _DetailScreenState extends State<DetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildStockHeader(theme),
+            const SizedBox(height: 16),
+            _buildActionButtons(theme),
             const SizedBox(height: 24),
             _buildPriceChart(theme),
             const SizedBox(height: 24),
@@ -277,6 +279,44 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildActionButtons(ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/insights',
+                    arguments: {'symbol': _stockSymbol},
+                  );
+                },
+                icon: const Icon(Icons.analytics_outlined),
+                label: const Text('Insights'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  // TODO: Add share functionality
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Share feature coming soon!')),
+                  );
+                },
+                icon: const Icon(Icons.share_outlined),
+                label: const Text('Share'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

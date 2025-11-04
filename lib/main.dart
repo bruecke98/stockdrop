@@ -8,11 +8,11 @@ import 'package:provider/provider.dart';
 // Import screens
 import 'screens/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
-import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/insights_screen.dart';
 
 // Import providers
 import 'providers/stock_provider.dart';
@@ -134,6 +134,14 @@ class StockDropApp extends StatelessWidget {
         final symbol = args?['symbol'] as String?;
         return MaterialPageRoute(
           builder: (context) => DetailScreen(symbol: symbol),
+          settings: settings,
+        );
+      case '/insights':
+        // Extract stock symbol from arguments
+        final args = settings.arguments as Map<String, dynamic>?;
+        final symbol = args?['symbol'] as String?;
+        return MaterialPageRoute(
+          builder: (context) => InsightsScreen(symbol: symbol),
           settings: settings,
         );
       default:

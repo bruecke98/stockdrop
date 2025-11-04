@@ -27,9 +27,22 @@ CREATE TABLE IF NOT EXISTS public.st_settings (
     CONSTRAINT valid_threshold CHECK (notification_threshold >= 0 AND notification_threshold <= 100)
 );
 
+-- Create st_insights_notes table
+CREATE TABLE IF NOT EXISTS public.st_insights_notes (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    insight_type TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, symbol, insight_type)
+);
+
 -- Enable RLS
 ALTER TABLE public.st_favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.st_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.st_insights_notes ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for st_favorites
 CREATE POLICY "Users can manage their own favorites" ON public.st_favorites
@@ -39,12 +52,18 @@ CREATE POLICY "Users can manage their own favorites" ON public.st_favorites
 CREATE POLICY "Users can manage their own settings" ON public.st_settings
     FOR ALL USING (auth.uid() = user_id);
 
+-- RLS Policies for st_insights_notes
+CREATE POLICY "Users can manage their own insight notes" ON public.st_insights_notes
+    FOR ALL USING (auth.uid() = user_id);
+
 -- Create indexes
 CREATE INDEX idx_st_favorites_user_id ON public.st_favorites(user_id);
 CREATE INDEX idx_st_settings_user_id ON public.st_settings(user_id);
+CREATE INDEX idx_st_insights_notes_user_id ON public.st_insights_notes(user_id);
 
 -- Grant permissions
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON public.st_favorites TO authenticated;
 GRANT ALL ON public.st_settings TO authenticated;
+GRANT ALL ON public.st_insights_notes TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;

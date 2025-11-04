@@ -426,6 +426,276 @@ class ApiService {
     }
   }
 
+  // ==================== INSIGHTS METHODS ====================
+
+  /// Get comprehensive insights for a stock including ESG, analyst data, etc.
+  Future<Map<String, dynamic>> getInsights(String symbol) async {
+    try {
+      debugPrint('🔍 Fetching insights for $symbol...');
+      debugPrint('🔑 Using API key: ${_apiKey.substring(0, 8)}...');
+
+      final insights = <String, dynamic>{};
+
+      // Test API connectivity first
+      final healthCheck = await checkApiHealth();
+      if (!healthCheck) {
+        debugPrint('⚠️ API health check failed - continuing anyway');
+      }
+
+      // Fetch multiple data sources in parallel with timeout
+      final futures = [
+        _fetchESGScore(symbol).timeout(const Duration(seconds: 15)),
+        _fetchAnalystEstimates(symbol).timeout(const Duration(seconds: 15)),
+        _fetchInstitutionalOwnership(
+          symbol,
+        ).timeout(const Duration(seconds: 15)),
+        _fetchInsiderTrading(symbol).timeout(const Duration(seconds: 15)),
+        _fetchEconomicCalendar().timeout(const Duration(seconds: 15)),
+        _fetchMergersAcquisitions().timeout(const Duration(seconds: 15)),
+        _fetchCompanyProfile(symbol).timeout(
+          const Duration(seconds: 15),
+        ), // Add company profile as fallback
+      ];
+
+      final results = await Future.wait(futures, eagerError: false);
+
+      insights['esgScore'] = results[0];
+      insights['analystEstimates'] = results[1];
+      insights['institutionalOwnership'] = results[2];
+      insights['insiderTrading'] = results[3];
+      insights['economicCalendar'] = results[4];
+      insights['mergersAcquisitions'] = results[5];
+      insights['companyProfile'] = results[6]; // Additional company info
+
+      // Log what we actually got
+      final availableData = insights.entries
+          .where(
+            (entry) =>
+                entry.value != null &&
+                (entry.value is! List || (entry.value as List).isNotEmpty) &&
+                (entry.value is! Map || (entry.value as Map).isNotEmpty),
+          )
+          .map((entry) => entry.key)
+          .toList();
+
+      debugPrint('✅ Successfully fetched insights for $symbol');
+      debugPrint('📊 Available data: ${availableData.join(', ')}');
+
+      return insights;
+    } catch (e) {
+      debugPrint('❌ Error fetching insights for $symbol: $e');
+      throw ApiException('Failed to fetch insights', 500, e.toString());
+    }
+  }
+
+  /// Fetch company profile as additional insight
+  Future<Map<String, dynamic>?> _fetchCompanyProfile(String symbol) async {
+    try {
+      debugPrint('🏢 Fetching company profile for $symbol...');
+      final url = Uri.parse('$_baseUrl/profile/$symbol?apikey=$_apiKey');
+      debugPrint('🌐 Profile URL: $url');
+
+      final response = await http.get(url);
+      debugPrint('📡 Profile Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('📊 Profile Response data type: ${data.runtimeType}');
+        if (data is List && data.isNotEmpty) {
+          debugPrint('✅ Company profile found for $symbol');
+          return data.first;
+        } else if (data is Map && data.isNotEmpty) {
+          debugPrint('✅ Company profile found for $symbol (as map)');
+          return Map<String, dynamic>.from(data);
+        }
+      } else {
+        debugPrint(
+          '❌ Profile API error: ${response.statusCode} - ${response.body}',
+        );
+      }
+      debugPrint(
+        '⚠️ Company profile not available for $symbol (status: ${response.statusCode})',
+      );
+      return null;
+    } catch (e) {
+      debugPrint('❌ Company profile fetch failed for $symbol: $e');
+      return null;
+    }
+  }
+
+  /// Fetch ESG score for a stock
+  Future<Map<String, dynamic>?> _fetchESGScore(String symbol) async {
+    try {
+      debugPrint('🌱 Fetching ESG score for $symbol...');
+      // FMP uses 'esg-environmental-social-governance-data' endpoint
+      final url = Uri.parse(
+        '$_baseUrl/esg-environmental-social-governance-data?symbol=$symbol&apikey=$_apiKey',
+      );
+      debugPrint('🌐 ESG URL: $url');
+
+      final response = await http.get(url);
+      debugPrint('📡 ESG Response status: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        debugPrint('📊 ESG Response data type: ${data.runtimeType}');
+        if (data is List && data.isNotEmpty) {
+          debugPrint('✅ ESG data found for $symbol');
+          return data.first;
+        } else if (data is Map && data.isNotEmpty) {
+          debugPrint('✅ ESG data found for $symbol (as map)');
+          return Map<String, dynamic>.from(data);
+        }
+      } else {
+        debugPrint(
+          '❌ ESG API error: ${response.statusCode} - ${response.body}',
+        );
+      }
+      debugPrint(
+        '⚠️ ESG data not available for $symbol (status: ${response.statusCode})',
+      );
+      return null;
+    } catch (e) {
+      debugPrint('❌ ESG score fetch failed for $symbol: $e');
+      return null;
+    }
+  }
+
+  /// Fetch analyst estimates for a stock
+  Future<Map<String, dynamic>?> _fetchAnalystEstimates(String symbol) async {
+    try {
+      // Use analyst-estimates endpoint
+      final url = Uri.parse(
+        '$_baseUrl/analyst-estimates/$symbol?apikey=$_apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List && data.isNotEmpty) {
+          return data.first;
+        }
+      }
+      debugPrint(
+        '⚠️ Analyst estimates not available for $symbol (status: ${response.statusCode})',
+      );
+      return null;
+    } catch (e) {
+      debugPrint('❌ Analyst estimates fetch failed for $symbol: $e');
+      return null;
+    }
+  }
+
+  /// Fetch institutional ownership data
+  Future<List<Map<String, dynamic>>> _fetchInstitutionalOwnership(
+    String symbol,
+  ) async {
+    try {
+      // Use institutional-holder endpoint
+      final url = Uri.parse(
+        '$_baseUrl/institutional-holder/$symbol?apikey=$_apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+      }
+      debugPrint(
+        '⚠️ Institutional ownership not available for $symbol (status: ${response.statusCode})',
+      );
+      return [];
+    } catch (e) {
+      debugPrint('❌ Institutional ownership fetch failed for $symbol: $e');
+      return [];
+    }
+  }
+
+  /// Fetch insider trading data
+  Future<List<Map<String, dynamic>>> _fetchInsiderTrading(String symbol) async {
+    try {
+      // Use insider-trading endpoint
+      final url = Uri.parse(
+        '$_baseUrl/insider-trading?symbol=$symbol&apikey=$_apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+      }
+      debugPrint(
+        '⚠️ Insider trading not available for $symbol (status: ${response.statusCode})',
+      );
+      return [];
+    } catch (e) {
+      debugPrint('❌ Insider trading fetch failed for $symbol: $e');
+      return [];
+    }
+  }
+
+  /// Fetch economic calendar events
+  Future<List<Map<String, dynamic>>> _fetchEconomicCalendar() async {
+    try {
+      // Use economic_calendar endpoint with date range
+      final today = DateTime.now();
+      final from = today
+          .subtract(const Duration(days: 7))
+          .toIso8601String()
+          .split('T')[0];
+      final to = today
+          .add(const Duration(days: 30))
+          .toIso8601String()
+          .split('T')[0];
+
+      final url = Uri.parse(
+        '$_baseUrl/economic_calendar?from=$from&to=$to&apikey=$_apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data.take(10));
+        }
+      }
+      debugPrint(
+        '⚠️ Economic calendar not available (status: ${response.statusCode})',
+      );
+      return [];
+    } catch (e) {
+      debugPrint('❌ Economic calendar fetch failed: $e');
+      return [];
+    }
+  }
+
+  /// Fetch mergers and acquisitions data
+  Future<List<Map<String, dynamic>>> _fetchMergersAcquisitions() async {
+    try {
+      // Use mergers-acquisitions-rss-feed endpoint - this might be limited or require higher tier
+      final url = Uri.parse(
+        '$_baseUrl/mergers-acquisitions-rss-feed?page=0&apikey=$_apiKey',
+      );
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data.take(10));
+        }
+      }
+      debugPrint('⚠️ M&A data not available (status: ${response.statusCode})');
+      return [];
+    } catch (e) {
+      debugPrint('❌ M&A data fetch failed: $e');
+      return [];
+    }
+  }
+
   // ==================== UTILITY METHODS ====================
 
   /// Check API health and connectivity

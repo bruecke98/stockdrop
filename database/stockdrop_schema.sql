@@ -124,18 +124,72 @@ CREATE TRIGGER create_user_settings_trigger
     FOR EACH ROW
     EXECUTE FUNCTION create_default_user_settings();
 
+-- Create st_insights_notes table
+-- This table stores user notes for different insight types per stock symbol
+CREATE TABLE IF NOT EXISTS public.st_insights_notes (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    insight_type TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Ensure a user can't have multiple notes for the same insight type per symbol
+    UNIQUE(user_id, symbol, insight_type)
+);
+
+-- Add comments to st_insights_notes table and columns
+COMMENT ON TABLE public.st_insights_notes IS 'Stores user notes for different insight types per stock symbol';
+COMMENT ON COLUMN public.st_insights_notes.id IS 'Primary key, auto-incrementing identifier';
+COMMENT ON COLUMN public.st_insights_notes.user_id IS 'Foreign key referencing auth.users, identifies the user who wrote the note';
+COMMENT ON COLUMN public.st_insights_notes.symbol IS 'Stock symbol (e.g., AAPL, GOOGL, TSLA)';
+COMMENT ON COLUMN public.st_insights_notes.insight_type IS 'Type of insight (e.g., esg, analyst, institutional, insider, economic, mergers)';
+COMMENT ON COLUMN public.st_insights_notes.note IS 'User written note content';
+COMMENT ON COLUMN public.st_insights_notes.created_at IS 'Timestamp when the note was created';
+COMMENT ON COLUMN public.st_insights_notes.updated_at IS 'Timestamp when the note was last updated';
+
+-- Enable Row Level Security (RLS) for st_insights_notes table
+ALTER TABLE public.st_insights_notes ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policy for st_insights_notes: Users can only access their own notes
+CREATE POLICY "Users can view their own insight notes" ON public.st_insights_notes
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own insight notes" ON public.st_insights_notes
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own insight notes" ON public.st_insights_notes
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own insight notes" ON public.st_insights_notes
+    FOR DELETE USING (auth.uid() = user_id);
+
+-- Create indexes for better performance on st_insights_notes
+CREATE INDEX IF NOT EXISTS idx_st_insights_notes_user_id ON public.st_insights_notes(user_id);
+CREATE INDEX IF NOT EXISTS idx_st_insights_notes_symbol ON public.st_insights_notes(symbol);
+CREATE INDEX IF NOT EXISTS idx_st_insights_notes_insight_type ON public.st_insights_notes(insight_type);
+CREATE INDEX IF NOT EXISTS idx_st_insights_notes_updated_at ON public.st_insights_notes(updated_at);
+
+-- Create trigger to automatically update updated_at timestamp for st_insights_notes
+CREATE TRIGGER update_st_insights_notes_updated_at
+    BEFORE UPDATE ON public.st_insights_notes
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- Grant necessary permissions
 -- These grants ensure that authenticated users can access the tables
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT ALL ON public.st_favorites TO authenticated;
 GRANT ALL ON public.st_settings TO authenticated;
+GRANT ALL ON public.st_insights_notes TO authenticated;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
 -- Success message
 DO $$
 BEGIN
     RAISE NOTICE 'StockDrop database schema created successfully!';
-    RAISE NOTICE 'Tables created: st_favorites, st_settings';
+    RAISE NOTICE 'Tables created: st_favorites, st_settings, st_insights_notes';
     RAISE NOTICE 'Row Level Security enabled with user-specific policies';
     RAISE NOTICE 'Indexes and triggers configured for optimal performance';
 END $$;
