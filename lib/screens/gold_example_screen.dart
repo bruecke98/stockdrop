@@ -3,7 +3,7 @@ import '../widgets/gold_card.dart';
 import '../widgets/gold_chart_widget.dart';
 
 /// Example screen showcasing the Gold Card and Gold Chart widgets
-/// 
+///
 /// This demonstrates how to integrate gold commodity tracking in StockDrop app:
 /// - Gold price card display
 /// - Interactive gold price charts
@@ -29,7 +29,13 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
         backgroundColor: theme.colorScheme.surface,
         actions: [
           IconButton(
-            icon: Icon(_showCompactCards ? Icons.view_list : Icons.view_compact),
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.pushNamed(context, '/search'),
+          ),
+          IconButton(
+            icon: Icon(
+              _showCompactCards ? Icons.view_list : Icons.view_compact,
+            ),
             onPressed: () {
               setState(() {
                 _showCompactCards = !_showCompactCards;
@@ -101,7 +107,7 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Main gold card
         GoldCard(
           isCompact: _showCompactCards,
@@ -148,7 +154,7 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        
+
         // Main chart
         const GoldChartWidget(
           height: 300,
@@ -174,7 +180,7 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Grid of cards and charts
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),

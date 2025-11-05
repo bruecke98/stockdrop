@@ -39,6 +39,14 @@ class ChartDemoScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Chart Demo'),
         backgroundColor: Theme.of(context).colorScheme.surface,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.pushNamed(context, '/search');
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -130,6 +138,14 @@ class _StockChartDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(stock.symbol),
         backgroundColor: theme.colorScheme.surface,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.pushNamed(context, '/search');
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

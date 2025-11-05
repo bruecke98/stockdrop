@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../widgets/commodity_card.dart';
 
 /// Oil example screen demonstrating crude oil commodity tracking
@@ -11,6 +14,206 @@ class OilExampleScreen extends StatefulWidget {
 }
 
 class _OilExampleScreenState extends State<OilExampleScreen> {
+  List<FlSpot> chartData = [];
+  bool isLoading = true;
+  double currentPrice = 0.0;
+  double changePercent = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchOilData();
+  }
+
+  Future<void> _fetchOilData() async {
+    try {
+      // You should replace 'your_api_key' with actual API key from shared preferences
+      const apiKey = 'your_api_key';
+
+      // Fetch current price
+      final quoteResponse = await http.get(
+        Uri.parse(
+          'https://financialmodelingprep.com/api/v3/quote/CLUSD?apikey=$apiKey',
+        ),
+      );
+
+      // Fetch historical data (240 days)
+      final DateTime endDate = DateTime.now();
+      final DateTime startDate = endDate.subtract(const Duration(days: 240));
+      final String fromDate =
+          "${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}";
+      final String toDate =
+          "${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}";
+
+      final historicalResponse = await http.get(
+        Uri.parse(
+          'https://financialmodelingprep.com/api/v3/historical-price-full/CLUSD?from=$fromDate&to=$toDate&apikey=$apiKey',
+        ),
+      );
+
+      if (quoteResponse.statusCode == 200 &&
+          historicalResponse.statusCode == 200) {
+        final quoteData = json.decode(quoteResponse.body);
+        final historicalData = json.decode(historicalResponse.body);
+
+        if (quoteData.isNotEmpty) {
+          setState(() {
+            currentPrice = quoteData[0]['price']?.toDouble() ?? 0.0;
+            changePercent =
+                quoteData[0]['changesPercentage']?.toDouble() ?? 0.0;
+          });
+        }
+
+        if (historicalData['historical'] != null) {
+          final List<dynamic> historical = historicalData['historical'];
+          setState(() {
+            chartData = historical
+                .asMap()
+                .entries
+                .map((entry) {
+                  return FlSpot(
+                    entry.key.toDouble(),
+                    entry.value['close']?.toDouble() ?? 0.0,
+                  );
+                })
+                .toList()
+                .reversed
+                .toList(); // Reverse to get chronological order
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching oil data: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Widget _buildOilChart() {
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.brown),
+      );
+    }
+
+    if (chartData.isEmpty) {
+      return const Center(child: Text('No chart data available'));
+    }
+
+    return Container(
+      height: 300,
+      padding: const EdgeInsets.all(16),
+      child: LineChart(
+        LineChartData(
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: true,
+            horizontalInterval: 1,
+            verticalInterval: 1,
+            getDrawingHorizontalLine: (value) {
+              return FlLine(
+                color: Colors.brown.withOpacity(0.2),
+                strokeWidth: 1,
+              );
+            },
+            getDrawingVerticalLine: (value) {
+              return FlLine(
+                color: Colors.brown.withOpacity(0.2),
+                strokeWidth: 1,
+              );
+            },
+          ),
+          titlesData: FlTitlesData(
+            show: true,
+            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 30,
+                interval: 20,
+                getTitlesWidget: (value, meta) {
+                  if (value.toInt() % 40 == 0) {
+                    return SideTitleWidget(
+                      axisSide: meta.axisSide,
+                      child: Text(
+                        '${(240 - value.toInt())}d',
+                        style: const TextStyle(
+                          color: Colors.brown,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    );
+                  }
+                  return Container();
+                },
+              ),
+            ),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: 10,
+                getTitlesWidget: (value, meta) {
+                  return Text(
+                    '\$${value.toInt()}',
+                    style: const TextStyle(
+                      color: Colors.brown,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  );
+                },
+                reservedSize: 42,
+              ),
+            ),
+          ),
+          borderData: FlBorderData(
+            show: true,
+            border: Border.all(color: Colors.brown, width: 2),
+          ),
+          minX: 0,
+          maxX: chartData.length.toDouble() - 1,
+          minY:
+              chartData.map((spot) => spot.y).reduce((a, b) => a < b ? a : b) *
+              0.95,
+          maxY:
+              chartData.map((spot) => spot.y).reduce((a, b) => a > b ? a : b) *
+              1.05,
+          lineBarsData: [
+            LineChartBarData(
+              spots: chartData,
+              isCurved: true,
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF8B4513), // Saddle brown
+                  Color(0xFFD2691E), // Chocolate
+                  Color(0xFFCD853F), // Peru
+                ],
+              ),
+              barWidth: 3,
+              isStrokeCapRound: true,
+              dotData: FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF8B4513).withOpacity(0.3),
+                    const Color(0xFFD2691E).withOpacity(0.1),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -29,6 +232,14 @@ class _OilExampleScreenState extends State<OilExampleScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.pushNamed(context, '/search');
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -110,6 +321,82 @@ class _OilExampleScreenState extends State<OilExampleScreen> {
             // Current Oil Price Section
             _buildSectionHeader(theme, 'Current Oil Price', Icons.trending_up),
             const SizedBox(height: 12),
+
+            // Real-time price display
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.brown.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.brown.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Crude Oil (CLUSD)',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.brown,
+                        ),
+                      ),
+                      Text(
+                        '\$${currentPrice.toStringAsFixed(2)}',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.brown,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: changePercent >= 0 ? Colors.green : Colors.red,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${changePercent >= 0 ? '+' : ''}${changePercent.toStringAsFixed(2)}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Chart Section
+            _buildSectionHeader(
+              theme,
+              '240-Day Oil Price Chart',
+              Icons.show_chart,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: _buildOilChart(),
+            ),
+
             CommodityCard(
               commodityType: 'oil',
               isCompact: false,

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/silver_widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/silver_widget_background"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="8dp">
+
+    <!-- Silver Icon -->
+    <ImageView
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:src="@drawable/ic_silver"
+        android:tint="#C0C0C0"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Symbol and Name -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/silver_symbol"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SILVER"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#000000" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Silver Price"
+            android:textSize="9sp"
+            android:textColor="#666666" />
+
+    </LinearLayout>
+
+    <!-- Price -->
+    <TextView
+        android:id="@+id/silver_price"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="$24.85"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Change -->
+    <TextView
+        android:id="@+id/silver_change"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="+0.8%"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:background="@drawable/change_badge_background"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="2dp"
+        android:layout_marginEnd="4dp" />
+
+    <!-- Refresh Button -->
+    <ImageView
+        android:id="@+id/refresh_button"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_refresh"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:tint="#000000" />
+
+</LinearLayout>
+
+    <!-- Header Row - Smaller -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_silver"
+            android:tint="#C0C0C0" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="Silver Price"
+            android:textSize="10sp"
+            android:textColor="#000000" />
+
+        <ImageView
+            android:id="@+id/refresh_button"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_refresh"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:tint="#000000" />
+
+    </LinearLayout>
+
+    <!-- Price Information Row - Smaller -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/silver_symbol"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SILVER"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#000000" />
+
+        <TextView
+            android:id="@+id/silver_price"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="$24.75"
+            android:textSize="11sp"
+            android:textColor="#000000" />
+
+        <TextView
+            android:id="@+id/silver_change"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="-0.8%"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:background="@drawable/silver_change_badge_background"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="1dp" />
+
+    </LinearLayout>
+
+    <!-- Chart Container - Smaller -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <ImageView
+            android:id="@+id/silver_chart"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="Silver price chart" />
+
+    </LinearLayout>
+
+    <!-- Time Period Indicator - Smaller -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="90D"
+        android:textSize="8sp"
+        android:textColor="#000000"
+        android:gravity="center" />
+
+</LinearLayout>

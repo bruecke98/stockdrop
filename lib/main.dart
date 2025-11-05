@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/main_navigation_screen.dart';
 import 'screens/search_screen.dart';
+import 'screens/filter_screen.dart';
 import 'screens/favorites_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/settings_screen.dart';
@@ -124,6 +125,7 @@ class StockDropApp extends StatelessWidget {
       '/login': (context) => const LoginScreen(),
       '/home': (context) => const MainNavigationScreen(),
       '/search': (context) => const SearchScreen(),
+      '/filter': (context) => const FilterScreen(),
       '/favorites': (context) => const FavoritesScreen(),
       '/settings': (context) => const SettingsScreen(),
     };

@@ -21,7 +21,7 @@ import java.util.*
 import kotlin.math.max
 import kotlin.math.min
 
-class GoldWidgetProvider : AppWidgetProvider() {
+class SilverWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
@@ -29,7 +29,7 @@ class GoldWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (appWidgetId in appWidgetIds) {
-            updateGoldWidget(context, appWidgetManager, appWidgetId)
+            updateSilverWidget(context, appWidgetManager, appWidgetId)
         }
     }
 
@@ -42,17 +42,17 @@ class GoldWidgetProvider : AppWidgetProvider() {
     }
 }
 
-private fun updateGoldWidget(
+private fun updateSilverWidget(
     context: Context,
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int
 ) {
-    val views = RemoteViews(context.packageName, R.layout.gold_widget)
+    val views = RemoteViews(context.packageName, R.layout.silver_widget)
     
     // Set loading state
-    views.setTextViewText(R.id.gold_symbol, "GOLD")
-    views.setTextViewText(R.id.gold_price, "Loading...")
-    views.setTextViewText(R.id.gold_change, "--")
+    views.setTextViewText(R.id.silver_symbol, "SILVER")
+    views.setTextViewText(R.id.silver_price, "Loading...")
+    views.setTextViewText(R.id.silver_change, "--")
 
     // Create an Intent to launch MainActivity when clicked
     val intent = Intent(context, MainActivity::class.java)
@@ -60,10 +60,10 @@ private fun updateGoldWidget(
         context, 0, intent, 
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
-    views.setOnClickPendingIntent(R.id.gold_widget_container, pendingIntent)
+    views.setOnClickPendingIntent(R.id.silver_widget_container, pendingIntent)
 
     // Create refresh intent
-    val refreshIntent = Intent(context, GoldWidgetProvider::class.java).apply {
+    val refreshIntent = Intent(context, SilverWidgetProvider::class.java).apply {
         action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(appWidgetId))
     }
@@ -76,11 +76,11 @@ private fun updateGoldWidget(
     // Update widget with loading state first
     appWidgetManager.updateAppWidget(appWidgetId, views)
     
-    // Fetch gold data asynchronously
-    fetchGoldData(context, appWidgetManager, appWidgetId, views)
+    // Fetch silver data asynchronously
+    fetchSilverData(context, appWidgetManager, appWidgetId, views)
 }
 
-private fun fetchGoldData(
+private fun fetchSilverData(
     context: Context,
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int,
@@ -91,51 +91,51 @@ private fun fetchGoldData(
             // Get API key from shared preferences
             val apiKey = getApiKey(context)
             
-            Log.d("GoldWidget", "API Key: ${if (apiKey.isNotEmpty()) "${apiKey.substring(0, 8)}..." else "empty"}")
+            Log.d("SilverWidget", "API Key: ${if (apiKey.isNotEmpty()) "${apiKey.substring(0, 8)}..." else "empty"}")
             
             if (apiKey.isEmpty()) {
-                Log.e("GoldWidget", "No API key available")
+                Log.e("SilverWidget", "No API key available")
                 withContext(Dispatchers.Main) {
-                    views.setTextViewText(R.id.gold_symbol, "GOLD")
-                    views.setTextViewText(R.id.gold_price, "No API Key")
-                    views.setTextViewText(R.id.gold_change, "")
+                    views.setTextViewText(R.id.silver_symbol, "SILVER")
+                    views.setTextViewText(R.id.silver_price, "No API Key")
+                    views.setTextViewText(R.id.silver_change, "")
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 }
                 return@launch
             }
 
-            // Fetch current gold price
-            val currentQuote = fetchGoldQuote(apiKey)
+            // Fetch current silver price
+            val currentQuote = fetchSilverQuote(apiKey)
             // Fetch historical data for chart
-            val historicalData = fetchGoldHistoricalData(apiKey)
+            val historicalData = fetchSilverHistoricalData(apiKey)
             
             if (currentQuote != null) {
-                Log.d("GoldWidget", "Gold price: $${currentQuote.price}, Change: ${currentQuote.changePercent}%")
+                Log.d("SilverWidget", "Silver price: $${currentQuote.price}, Change: ${currentQuote.changePercent}%")
                 
                 withContext(Dispatchers.Main) {
-                    updateWidgetWithGoldData(appWidgetManager, appWidgetId, views, currentQuote, historicalData)
+                    updateWidgetWithSilverData(appWidgetManager, appWidgetId, views, currentQuote, historicalData)
                 }
             } else {
                 // Fallback to demo data if API calls fail
                 withContext(Dispatchers.Main) {
-                    val demoQuote = GoldQuote(2025.50, 1.2)
-                    updateWidgetWithGoldData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
+                    val demoQuote = SilverQuote(24.75, -0.8)
+                    updateWidgetWithSilverData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
                 }
             }
         } catch (e: Exception) {
-            Log.e("GoldWidget", "Error fetching gold data: ${e.message}")
+            Log.e("SilverWidget", "Error fetching silver data: ${e.message}")
             withContext(Dispatchers.Main) {
                 // Show demo data on error
-                val demoQuote = GoldQuote(2025.50, 1.2)
-                updateWidgetWithGoldData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
+                val demoQuote = SilverQuote(24.75, -0.8)
+                updateWidgetWithSilverData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
             }
         }
     }
 }
 
-private fun fetchGoldQuote(apiKey: String): GoldQuote? {
+private fun fetchSilverQuote(apiKey: String): SilverQuote? {
     return try {
-        val url = URL("https://financialmodelingprep.com/api/v3/quote/GCUSD?apikey=$apiKey")
+        val url = URL("https://financialmodelingprep.com/api/v3/quote/SIUSD?apikey=$apiKey")
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
         connection.connectTimeout = 10000
@@ -146,23 +146,23 @@ private fun fetchGoldQuote(apiKey: String): GoldQuote? {
             val jsonArray = JSONArray(response)
             
             if (jsonArray.length() > 0) {
-                val goldData = jsonArray.getJSONObject(0)
-                GoldQuote(
-                    price = goldData.getDouble("price"),
-                    changePercent = goldData.getDouble("changesPercentage")
+                val silverData = jsonArray.getJSONObject(0)
+                SilverQuote(
+                    price = silverData.getDouble("price"),
+                    changePercent = silverData.getDouble("changesPercentage")
                 )
             } else null
         } else {
-            Log.e("GoldWidget", "HTTP error: ${connection.responseCode}")
+            Log.e("SilverWidget", "HTTP error: ${connection.responseCode}")
             null
         }
     } catch (e: Exception) {
-        Log.e("GoldWidget", "Error parsing gold quote: ${e.message}")
+        Log.e("SilverWidget", "Error parsing silver quote: ${e.message}")
         null
     }
 }
 
-private fun fetchGoldHistoricalData(apiKey: String): List<GoldHistoricalPoint> {
+private fun fetchSilverHistoricalData(apiKey: String): List<SilverHistoricalPoint> {
     return try {
         // Get last 90 days of data
         val calendar = Calendar.getInstance()
@@ -171,7 +171,7 @@ private fun fetchGoldHistoricalData(apiKey: String): List<GoldHistoricalPoint> {
         
         val toDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         
-        val url = URL("https://financialmodelingprep.com/api/v3/historical-price-full/GCUSD?from=$fromDate&to=$toDate&apikey=$apiKey")
+        val url = URL("https://financialmodelingprep.com/api/v3/historical-price-full/SIUSD?from=$fromDate&to=$toDate&apikey=$apiKey")
         val connection = url.openConnection() as HttpURLConnection
         connection.requestMethod = "GET"
         connection.connectTimeout = 15000
@@ -182,11 +182,11 @@ private fun fetchGoldHistoricalData(apiKey: String): List<GoldHistoricalPoint> {
             val jsonObject = JSONObject(response)
             val historical = jsonObject.getJSONArray("historical")
             
-            val points = mutableListOf<GoldHistoricalPoint>()
+            val points = mutableListOf<SilverHistoricalPoint>()
             for (i in 0 until historical.length()) {
                 val point = historical.getJSONObject(i)
                 points.add(
-                    GoldHistoricalPoint(
+                    SilverHistoricalPoint(
                         date = point.getString("date"),
                         close = point.getDouble("close")
                     )
@@ -194,35 +194,35 @@ private fun fetchGoldHistoricalData(apiKey: String): List<GoldHistoricalPoint> {
             }
             points.reversed() // Most recent first
         } else {
-            Log.e("GoldWidget", "Historical data HTTP error: ${connection.responseCode}")
+            Log.e("SilverWidget", "Historical data HTTP error: ${connection.responseCode}")
             emptyList()
         }
     } catch (e: Exception) {
-        Log.e("GoldWidget", "Error fetching historical data: ${e.message}")
+        Log.e("SilverWidget", "Error fetching historical data: ${e.message}")
         emptyList()
     }
 }
 
-private fun updateWidgetWithGoldData(
+private fun updateWidgetWithSilverData(
     appWidgetManager: AppWidgetManager,
     appWidgetId: Int,
     views: RemoteViews,
-    quote: GoldQuote,
-    historicalData: List<GoldHistoricalPoint>
+    quote: SilverQuote,
+    historicalData: List<SilverHistoricalPoint>
 ) {
     // Update text fields
-    views.setTextViewText(R.id.gold_symbol, "GOLD")
-    views.setTextViewText(R.id.gold_price, "$${String.format("%.2f", quote.price)}")
+    views.setTextViewText(R.id.silver_symbol, "SILVER")
+    views.setTextViewText(R.id.silver_price, "$${String.format("%.2f", quote.price)}")
     
     val changeText = if (quote.changePercent >= 0) {
         "+${String.format("%.1f", quote.changePercent)}%"
     } else {
         "${String.format("%.1f", quote.changePercent)}%"
     }
-    views.setTextViewText(R.id.gold_change, changeText)
+    views.setTextViewText(R.id.silver_change, changeText)
     
     // Set change color - always black as requested
-    views.setTextColor(R.id.gold_change, Color.BLACK)
+    views.setTextColor(R.id.silver_change, Color.BLACK)
     
     // Chart removed - widget is now single height
     
@@ -234,17 +234,17 @@ private fun getApiKey(context: Context): String {
     val prefs = context.getSharedPreferences("stockdrop_prefs", Context.MODE_PRIVATE)
     val apiKey = prefs.getString("fmp_api_key", "") ?: ""
     
-    Log.d("GoldWidget", "Retrieved API key from SharedPreferences: ${if (apiKey.isNotEmpty()) "${apiKey.substring(0, 8)}..." else "empty"}")
+    Log.d("SilverWidget", "Retrieved API key from SharedPreferences: ${if (apiKey.isNotEmpty()) "${apiKey.substring(0, 8)}..." else "empty"}")
     
     return apiKey
 }
 
-data class GoldQuote(
+data class SilverQuote(
     val price: Double,
     val changePercent: Double
 )
 
-data class GoldHistoricalPoint(
+data class SilverHistoricalPoint(
     val date: String,
     val close: Double
 )

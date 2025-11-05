@@ -20,20 +20,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<StockLoss> _stocks = [];
   bool _isLoading = false;
   String? _error;
-  double _lossThreshold = 5.0;
-  bool _useWeeklyLoss = false; // New option for weekly loss
-
-  // Additional filter options
-  double _minVolume = 500; // in thousands
-  double _minPrice = 1.0;
-  double _maxPrice = 1000.0;
-  final List<double> _volumeOptions = [
-    100,
-    500,
-    1000,
-    5000,
-    10000,
-  ]; // thousands
 
   @override
   void initState() {
@@ -51,191 +37,165 @@ class _HomeScreenState extends State<HomeScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.pushNamed(context, '/search'),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.pushNamed(context, '/settings'),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Commodities Section at top
-          _buildCommoditiesSection(theme),
-
-          // Filter Panel
-          _buildFilterPanel(theme),
-
-          // Stock List
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _refreshStocks,
-              child: FutureBuilder<void>(
-                future: null, // We handle the state manually
-                builder: (context, snapshot) {
-                  if (_isLoading && _stocks.isEmpty) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (_error != null && _stocks.isEmpty) {
-                    return _buildErrorWidget(theme);
-                  }
-
-                  if (_stocks.isEmpty && !_isLoading) {
-                    return _buildEmptyWidget(theme);
-                  }
-
-                  return _buildStockList(theme);
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/search'),
-        child: const Icon(Icons.search),
-      ),
-    );
-  }
-
-  Widget _buildFilterPanel(ThemeData theme) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.shadow.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Simplified Header
-          Row(
-            children: [
-              Icon(Icons.tune, color: theme.colorScheme.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Filters',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${_stocks.length} stocks',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Main Filters Row
-          Row(
-            children: [
-              // Loss Threshold Slider
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Min Loss: ${_lossThreshold.toStringAsFixed(1)}%',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w500,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const Spacer(),
-                        // Weekly loss toggle
-                        Row(
-                          children: [
-                            Text(
-                              'Weekly',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            Switch(
-                              value: _useWeeklyLoss,
-                              onChanged: (bool value) {
-                                setState(() {
-                                  _useWeeklyLoss = value;
-                                });
-                                _fetchStocks();
-                              },
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Slider(
-                      value: _lossThreshold,
-                      min: 1.0,
-                      max: 25.0,
-                      divisions: 48, // 0.5% increments
-                      onChanged: (double value) {
-                        setState(() {
-                          _lossThreshold = value;
-                        });
-                      },
-                      onChangeEnd: (double value) {
-                        _fetchStocks();
-                      },
+      body: RefreshIndicator(
+        onRefresh: _refreshStocks,
+        child: CustomScrollView(
+          slivers: [
+            // Stock List Header
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.shadow.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 12),
-
-              // More Filters Button
-              Expanded(
-                flex: 1,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
+                    Icon(
+                      Icons.trending_down,
+                      color: theme.colorScheme.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
                     Text(
-                      'More',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w500,
+                      'Top 10 Worst Performing Stocks',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${_stocks.length} stocks',
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          _showAdvancedFilters(context, theme);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text(
-                          'Filters',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+
+            // Stock List or Loading/Error States
+            if (_isLoading && _stocks.isEmpty)
+              const SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 200,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              )
+            else if (_error != null && _stocks.isEmpty)
+              SliverToBoxAdapter(child: _buildErrorWidget(theme))
+            else if (_stocks.isEmpty && !_isLoading)
+              SliverToBoxAdapter(child: _buildEmptyWidget(theme))
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final stock = _stocks[index];
+                  return Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    child: Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: theme.colorScheme.error.withOpacity(
+                            0.1,
+                          ),
+                          child: Text(
+                            stock.symbol.substring(0, 2).toUpperCase(),
+                            style: TextStyle(
+                              color: theme.colorScheme.error,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          stock.symbol,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              stock.name,
+                              style: theme.textTheme.bodyMedium,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  'Vol: ${_formatVolume(stock.volume)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '\$${stock.price.toStringAsFixed(2)}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.error,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${stock.changesPercentage.toStringAsFixed(1)}%',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onError,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }, childCount: _stocks.length),
+              ),
+
+            // Commodities Section
+            SliverToBoxAdapter(child: _buildCommoditiesSection(theme)),
+          ],
+        ),
       ),
     );
   }
@@ -285,361 +245,186 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        // Individual Commodity Cards - Full Width
-        // Gold Card
+        // Vertically Stacked Commodity Cards
         Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const GoldExampleScreen(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.amber.withOpacity(0.1),
-                      Colors.amber.withOpacity(0.05),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.amber.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.toll,
-                        color: Colors.amber.shade700,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'GOLD',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber.shade700,
-                            ),
-                          ),
-                          Text(
-                            'GCUSD',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.amber.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 100,
-                      height: 40,
-                      child: CommodityCard(
-                        commodityType: 'gold',
-                        isCompact: true,
-                        margin: EdgeInsets.zero,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Colors.amber.withOpacity(0.6),
-                    ),
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            children: [
+              // Gold Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildCommodityCard(
+                  theme: theme,
+                  title: 'GOLD',
+                  symbol: 'GCUSD',
+                  commodityType: 'gold',
+                  icon: Icons.toll,
+                  colors: [
+                    Colors.amber.withOpacity(0.1),
+                    Colors.amber.withOpacity(0.05),
                   ],
+                  borderColor: Colors.amber.withOpacity(0.3),
+                  iconBackgroundColor: Colors.amber.withOpacity(0.2),
+                  iconColor: Colors.amber.shade700,
+                  titleColor: Colors.amber.shade700,
+                  symbolColor: Colors.amber.shade600,
+                  arrowColor: Colors.amber.withOpacity(0.6),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const GoldExampleScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
-          ),
-        ),
 
-        // Silver Card
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SilverExampleScreen(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.grey.withOpacity(0.15),
-                      Colors.grey.withOpacity(0.08),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.grey.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.circle,
-                        color: Colors.grey.shade600,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'SILVER',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade700,
-                            ),
-                          ),
-                          Text(
-                            'SIUSD',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 100,
-                      height: 40,
-                      child: CommodityCard(
-                        commodityType: 'silver',
-                        isCompact: true,
-                        margin: EdgeInsets.zero,
-                      ),
-                    ),
+              // Silver Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildCommodityCard(
+                  theme: theme,
+                  title: 'SILVER',
+                  symbol: 'SIUSD',
+                  commodityType: 'silver',
+                  icon: Icons.circle,
+                  colors: [
+                    Colors.grey.withOpacity(0.15),
+                    Colors.grey.withOpacity(0.08),
                   ],
+                  borderColor: Colors.grey.withOpacity(0.3),
+                  iconBackgroundColor: Colors.grey.withOpacity(0.2),
+                  iconColor: Colors.grey.shade600,
+                  titleColor: Colors.grey.shade700,
+                  symbolColor: Colors.grey.shade600,
+                  arrowColor: Colors.grey.withOpacity(0.6),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SilverExampleScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
-          ),
-        ),
 
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const OilExampleScreen(),
-                  ),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [
-                      Colors.black.withOpacity(0.8),
-                      Colors.black.withOpacity(0.6),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: Colors.black.withOpacity(0.2),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.local_gas_station,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'OIL',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          Text(
-                            'BZUSD',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(
-                      width: 100,
-                      height: 40,
-                      child: CommodityCard(
-                        commodityType: 'oil',
-                        isCompact: true,
-                        margin: EdgeInsets.zero,
-                      ),
-                    ),
+              // Oil Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                child: _buildCommodityCard(
+                  theme: theme,
+                  title: 'OIL',
+                  symbol: 'BZUSD',
+                  commodityType: 'oil',
+                  icon: Icons.local_gas_station,
+                  colors: [
+                    Colors.black.withOpacity(0.8),
+                    Colors.black.withOpacity(0.6),
                   ],
+                  borderColor: Colors.black.withOpacity(0.2),
+                  iconBackgroundColor: Colors.white.withOpacity(0.2),
+                  iconColor: Colors.white,
+                  titleColor: Colors.white,
+                  symbolColor: Colors.white70,
+                  arrowColor: Colors.white.withOpacity(0.6),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const OilExampleScreen(),
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  Widget _buildStockList(ThemeData theme) {
-    return ListView.builder(
-      itemCount: _stocks.length,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemBuilder: (context, index) {
-        final stock = _stocks[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.error.withOpacity(0.1),
-              child: Text(
-                stock.symbol.substring(0, 2).toUpperCase(),
-                style: TextStyle(
-                  color: theme.colorScheme.error,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
+  Widget _buildCommodityCard({
+    required ThemeData theme,
+    required String title,
+    required String symbol,
+    required String commodityType,
+    required IconData icon,
+    required List<Color> colors,
+    required Color borderColor,
+    required Color iconBackgroundColor,
+    required Color iconColor,
+    required Color titleColor,
+    required Color symbolColor,
+    required Color arrowColor,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: colors,
             ),
-            title: Text(
-              stock.symbol,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  stock.name,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            border: Border.all(color: borderColor, width: 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: iconBackgroundColor,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 4),
-                Row(
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Vol: ${_formatVolume(stock.volume)}',
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: titleColor,
+                      ),
+                    ),
+                    Text(
+                      symbol,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                        color: symbolColor,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '\$${stock.price.toStringAsFixed(2)}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              SizedBox(
+                width: 100,
+                height: 40,
+                child: CommodityCard(
+                  commodityType: commodityType,
+                  isCompact: true,
+                  margin: EdgeInsets.zero,
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.error,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${stock.changesPercentage.toStringAsFixed(2)}%',
-                    style: TextStyle(
-                      color: theme.colorScheme.onError,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                '/detail',
-                arguments: {'symbol': stock.symbol},
-              );
-            },
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.arrow_forward_ios, size: 16, color: arrowColor),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -685,17 +470,17 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.trending_up, size: 64, color: theme.colorScheme.primary),
+            Icon(Icons.trending_down, size: 64, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(
-              'No stocks found',
+              'No Stock Data Available',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'No stocks meet the current loss threshold criteria.',
+              'Unable to load stock market data at this time. Please check your internet connection and try again.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -705,7 +490,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton.icon(
               onPressed: _fetchStocks,
               icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
+              label: const Text('Try Again'),
             ),
           ],
         ),
@@ -725,17 +510,15 @@ class _HomeScreenState extends State<HomeScreen> {
         throw Exception('FMP API key not found in environment variables');
       }
 
-      print(
-        'DEBUG: Starting to fetch stocks with API key: ${apiKey.substring(0, 8)}...',
-      );
+      print('DEBUG: Starting to fetch top 10 worst performing stocks...');
 
-      // Step 1: Get stocks using screener with applied filters
+      // Step 1: Use screener to get stocks with good volume and reasonable price
       final screenerUrl =
           'https://financialmodelingprep.com/api/v3/stock-screener'
-          '?volumeMoreThan=${(_minVolume * 1000).toInt()}'
-          '&priceMoreThan=${_minPrice.toStringAsFixed(2)}'
-          '&priceLowerThan=${_maxPrice.toStringAsFixed(2)}'
-          '&limit=1000'
+          '?volumeMoreThan=100000'
+          '&priceMoreThan=1'
+          '&priceLowerThan=1000'
+          '&limit=200'
           '&apikey=$apiKey';
 
       print('DEBUG: Fetching screener data from: $screenerUrl');
@@ -753,25 +536,21 @@ class _HomeScreenState extends State<HomeScreen> {
       print('DEBUG: Screener data length: ${screenerData.length}');
 
       if (screenerData.isEmpty) {
-        setState(() {
-          _stocks = [];
-          _isLoading = false;
-        });
-        return;
+        throw Exception('No stocks found in screener');
       }
 
-      // Extract symbols
+      // Step 2: Get symbols from screener results
       final symbols = screenerData
           .map((item) => item['symbol']?.toString())
           .where((symbol) => symbol != null)
-          .take(200) // Increased limit for more comprehensive data
+          .take(100) // Limit to avoid URL length issues
           .join(',');
 
       print(
-        'DEBUG: Getting quotes for symbols: ${symbols.substring(0, 50)}...',
+        'DEBUG: Getting quotes for ${screenerData.take(100).length} symbols...',
       );
 
-      // Step 2: Get detailed quotes
+      // Step 3: Get detailed quotes for these stocks
       final quotesUrl =
           'https://financialmodelingprep.com/api/v3/quote/$symbols?apikey=$apiKey';
       final quotesResponse = await http.get(Uri.parse(quotesUrl));
@@ -787,49 +566,44 @@ class _HomeScreenState extends State<HomeScreen> {
       final List<dynamic> quotesData = json.decode(quotesResponse.body);
       print('DEBUG: Quotes data length: ${quotesData.length}');
 
-      // Step 3: Filter stocks with comprehensive criteria
-      final filteredStocks = quotesData
-          .where((item) {
-            final changesPercentage =
-                (item['changesPercentage'] as num?)?.toDouble() ?? 0.0;
-            final price = (item['price'] as num?)?.toDouble() ?? 0.0;
-            final volume = (item['volume'] as num?)?.toDouble() ?? 0.0;
+      // Step 4: Filter for valid stocks and sort by worst performance
+      final validStocks = quotesData.where((item) {
+        final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+        final volume = (item['volume'] as num?)?.toDouble() ?? 0.0;
 
-            // Apply all filter conditions
-            bool meetsLossThreshold = changesPercentage <= -_lossThreshold;
-            bool meetsPriceRange = price >= _minPrice && price <= _maxPrice;
-            bool meetsVolumeRequirement = volume >= (_minVolume * 1000);
+        // Basic validation to ensure we have good data
+        return price > 0 &&
+            volume >
+                0; // Don't filter by change percentage, just ensure valid data
+      }).toList();
 
-            // Note: Weekly loss filtering could be implemented here with additional API data
-            // For now, we use the same logic but with a note in the UI
-            if (_useWeeklyLoss) {
-              // In a full implementation, we would fetch weekly change data here
-              // For demo purposes, we apply the same threshold
-              meetsLossThreshold = changesPercentage <= -_lossThreshold;
-            }
+      print('DEBUG: Valid stocks with volume: ${validStocks.length}');
 
-            return meetsLossThreshold &&
-                meetsPriceRange &&
-                meetsVolumeRequirement;
-          })
+      if (validStocks.isEmpty) {
+        throw Exception('No valid stocks found with volume data');
+      }
+
+      // Step 5: Sort by worst performance (most negative change first)
+      validStocks.sort((a, b) {
+        final aChange = (a['changesPercentage'] as num?)?.toDouble() ?? 0.0;
+        final bChange = (b['changesPercentage'] as num?)?.toDouble() ?? 0.0;
+        return aChange.compareTo(
+          bChange,
+        ); // Ascending order (most negative first)
+      });
+
+      // Step 6: Take top 10 worst performers
+      final topLosers = validStocks
+          .take(10)
           .map((item) => StockLoss.fromJson(item))
           .toList();
 
-      print(
-        'DEBUG: Filtered stocks with all criteria: ${filteredStocks.length}',
-      );
-
-      // Sort by loss percentage (highest loss first)
-      filteredStocks.sort(
-        (a, b) => a.changesPercentage.compareTo(b.changesPercentage),
-      );
+      print('DEBUG: Successfully loaded ${topLosers.length} top losing stocks');
 
       setState(() {
-        _stocks = filteredStocks.take(50).toList();
+        _stocks = topLosers;
         _isLoading = false;
       });
-
-      print('DEBUG: Successfully loaded ${_stocks.length} stocks');
     } catch (e) {
       print('DEBUG: Error fetching stocks: $e');
       setState(() {
@@ -850,149 +624,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return '${(volume / 1000).toStringAsFixed(1)}K';
     }
     return volume.toStringAsFixed(0);
-  }
-
-  void _showAdvancedFilters(BuildContext context, ThemeData theme) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Text(
-                  'Advanced Filters',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Weekly Loss Note
-            if (_useWeeklyLoss)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Weekly loss filter is enabled. This shows stocks with weekly decline.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (_useWeeklyLoss) const SizedBox(height: 16),
-
-            // Volume Filter
-            Text(
-              'Minimum Volume',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<double>(
-              value: _minVolume,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              items: _volumeOptions.map((double value) {
-                return DropdownMenuItem<double>(
-                  value: value,
-                  child: Text('${value.toInt()}K shares'),
-                );
-              }).toList(),
-              onChanged: (double? newValue) {
-                if (newValue != null && newValue != _minVolume) {
-                  setState(() {
-                    _minVolume = newValue;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // Price Range
-            Text(
-              'Price Range: \$${_minPrice.toStringAsFixed(2)} - \$${_maxPrice.toStringAsFixed(2)}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            RangeSlider(
-              values: RangeValues(_minPrice, _maxPrice),
-              min: 1.0,
-              max: 1000.0,
-              divisions: 100,
-              labels: RangeLabels(
-                '\$${_minPrice.toStringAsFixed(2)}',
-                '\$${_maxPrice.toStringAsFixed(2)}',
-              ),
-              onChanged: (RangeValues values) {
-                setState(() {
-                  _minPrice = values.start;
-                  _maxPrice = values.end;
-                });
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // Apply Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _fetchStocks();
-                },
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text('Apply Filters'),
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
   }
 }
 

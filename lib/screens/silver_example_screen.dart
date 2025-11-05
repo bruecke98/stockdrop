@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../widgets/commodity_card.dart';
 
 /// Silver example screen demonstrating silver commodity tracking
@@ -11,6 +14,83 @@ class SilverExampleScreen extends StatefulWidget {
 }
 
 class _SilverExampleScreenState extends State<SilverExampleScreen> {
+  List<FlSpot> chartData = [];
+  bool isLoading = true;
+  double currentPrice = 0.0;
+  double changePercent = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSilverData();
+  }
+
+  Future<void> _fetchSilverData() async {
+    try {
+      // You should replace 'your_api_key' with actual API key from shared preferences
+      const apiKey = 'your_api_key';
+
+      // Fetch current price
+      final quoteResponse = await http.get(
+        Uri.parse(
+          'https://financialmodelingprep.com/api/v3/quote/SIUSD?apikey=$apiKey',
+        ),
+      );
+
+      // Fetch historical data (240 days)
+      final DateTime endDate = DateTime.now();
+      final DateTime startDate = endDate.subtract(const Duration(days: 240));
+      final String fromDate =
+          "${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}";
+      final String toDate =
+          "${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}";
+
+      final historicalResponse = await http.get(
+        Uri.parse(
+          'https://financialmodelingprep.com/api/v3/historical-price-full/SIUSD?from=$fromDate&to=$toDate&apikey=$apiKey',
+        ),
+      );
+
+      if (quoteResponse.statusCode == 200 &&
+          historicalResponse.statusCode == 200) {
+        final quoteData = json.decode(quoteResponse.body);
+        final historicalData = json.decode(historicalResponse.body);
+
+        if (quoteData.isNotEmpty) {
+          setState(() {
+            currentPrice = quoteData[0]['price']?.toDouble() ?? 0.0;
+            changePercent =
+                quoteData[0]['changesPercentage']?.toDouble() ?? 0.0;
+          });
+        }
+
+        if (historicalData['historical'] != null) {
+          final List<dynamic> historical = historicalData['historical'];
+          setState(() {
+            chartData = historical
+                .asMap()
+                .entries
+                .map((entry) {
+                  return FlSpot(
+                    entry.key.toDouble(),
+                    entry.value['close']?.toDouble() ?? 0.0,
+                  );
+                })
+                .toList()
+                .reversed
+                .toList(); // Reverse to get chronological order
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching silver data: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -28,6 +108,12 @@ class _SilverExampleScreenState extends State<SilverExampleScreen> {
         backgroundColor: theme.colorScheme.surface,
         foregroundColor: theme.colorScheme.onSurface,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => Navigator.pushNamed(context, '/search'),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -118,6 +204,17 @@ class _SilverExampleScreenState extends State<SilverExampleScreen> {
               isCompact: false,
               margin: EdgeInsets.zero,
             ),
+
+            const SizedBox(height: 32),
+
+            // Silver Price Chart Section
+            _buildSectionHeader(
+              theme,
+              'Silver Price Chart (240 Days)',
+              Icons.show_chart,
+            ),
+            const SizedBox(height: 12),
+            _buildSilverChart(theme),
 
             const SizedBox(height: 32),
 
@@ -369,6 +466,170 @@ class _SilverExampleScreenState extends State<SilverExampleScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSilverChart(ThemeData theme) {
+    return Container(
+      height: 300,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.grey))
+          : chartData.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: Colors.grey.shade400,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Unable to load chart data',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Price display
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '\$${currentPrice.toStringAsFixed(2)}',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                        Text(
+                          '${changePercent >= 0 ? '+' : ''}${changePercent.toStringAsFixed(2)}%',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: changePercent >= 0
+                                ? Colors.green
+                                : Colors.red,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '240D',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Chart
+                Expanded(
+                  child: LineChart(
+                    LineChartData(
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: false,
+                        horizontalInterval: null,
+                        getDrawingHorizontalLine: (value) {
+                          return FlLine(
+                            color: Colors.grey.withOpacity(0.2),
+                            strokeWidth: 1,
+                          );
+                        },
+                      ),
+                      titlesData: FlTitlesData(
+                        show: true,
+                        rightTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        topTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        bottomTitles: const AxisTitles(
+                          sideTitles: SideTitles(showTitles: false),
+                        ),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            interval: null,
+                            getTitlesWidget: (value, meta) {
+                              return Text(
+                                '\$${value.toInt()}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 10,
+                                ),
+                              );
+                            },
+                            reservedSize: 40,
+                          ),
+                        ),
+                      ),
+                      borderData: FlBorderData(show: false),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: chartData,
+                          isCurved: true,
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.grey.shade600,
+                              Colors.grey.shade400,
+                            ],
+                          ),
+                          barWidth: 2,
+                          isStrokeCapRound: true,
+                          dotData: const FlDotData(show: false),
+                          belowBarData: BarAreaData(
+                            show: true,
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.grey.shade300.withOpacity(0.3),
+                                Colors.grey.shade100.withOpacity(0.1),
+                              ],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

@@ -3,4 +3,6 @@
     <string name="app_name">StockDrop</string>
     <string name="widget_description">Shows the stock with the biggest decline today</string>
     <string name="gold_widget_description">Shows current gold price with 30-day chart</string>
+    <string name="silver_widget_description">Shows current silver price with 30-day chart</string>
+    <string name="oil_widget_description">Shows current oil price with 30-day chart</string>
 </resources>

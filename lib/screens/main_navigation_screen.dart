@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
-import 'search_screen.dart';
+import 'filter_screen.dart';
 import 'favorites_screen.dart';
 import 'settings_screen.dart';
 
@@ -17,7 +17,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const SearchScreen(),
+    const FilterScreen(),
     const FavoritesScreen(),
     const SettingsScreen(),
   ];
@@ -29,9 +29,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       label: 'Home',
     ),
     const BottomNavigationBarItem(
-      icon: Icon(Icons.search_outlined),
-      activeIcon: Icon(Icons.search),
-      label: 'Search',
+      icon: Icon(Icons.filter_list_outlined),
+      activeIcon: Icon(Icons.filter_list),
+      label: 'Filters',
     ),
     const BottomNavigationBarItem(
       icon: Icon(Icons.favorite_outline),

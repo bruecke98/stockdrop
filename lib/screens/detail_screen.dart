@@ -65,7 +65,15 @@ class _DetailScreenState extends State<DetailScreen> {
       appBar: AppBar(
         title: Text(_stockSymbol ?? 'Stock Details'),
         centerTitle: true,
-        actions: [if (_stockDetail != null) _buildFavoriteButton(theme)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              Navigator.pushNamed(context, '/search');
+            },
+          ),
+          if (_stockDetail != null) _buildFavoriteButton(theme),
+        ],
       ),
       body: _buildBody(theme),
     );
