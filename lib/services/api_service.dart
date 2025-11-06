@@ -287,17 +287,24 @@ class ApiService {
         _getStockQuote(cleanSymbol),
         _getStockChart(cleanSymbol),
         _getStockNews(cleanSymbol),
+        getPriceTargetConsensus(cleanSymbol),
       ]);
 
       final quote = results[0] as Stock?;
       final chartData = results[1] as List<Map<String, dynamic>>;
       final newsData = results[2] as List<Map<String, dynamic>>;
+      final priceTarget = results[3] as PriceTargetConsensus?;
 
       if (quote == null) {
         throw ApiException('Stock not found', 404, 'No data for $cleanSymbol');
       }
 
-      return StockDetails(stock: quote, chartData: chartData, news: newsData);
+      return StockDetails(
+        stock: quote,
+        chartData: chartData,
+        news: newsData,
+        priceTargetConsensus: priceTarget,
+      );
     } on ApiException {
       rethrow;
     } catch (e) {
@@ -386,6 +393,138 @@ class ApiService {
       return newsItems;
     } catch (e) {
       debugPrint('❌ Error fetching news for $symbol: $e');
+      return [];
+    }
+  }
+
+  /// Get price target consensus for a stock
+  ///
+  /// [symbol] - Stock symbol (e.g., 'AAPL')
+  /// Returns analyst price target consensus data
+  Future<PriceTargetConsensus?> getPriceTargetConsensus(String symbol) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('🎯 Fetching price target consensus for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/price-target-consensus?symbol=$cleanSymbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Price target consensus not available for $cleanSymbol');
+        return null;
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No price target consensus data for $cleanSymbol');
+        return null;
+      }
+
+      final consensus = PriceTargetConsensus.fromJson(data.first);
+      debugPrint(
+        '🎯 Loaded price target consensus for $cleanSymbol: ${consensus.targetConsensus}',
+      );
+      return consensus;
+    } catch (e) {
+      debugPrint('❌ Error fetching price target consensus for $symbol: $e');
+      return null;
+    }
+  }
+
+  /// Get custom DCF (Discounted Cash Flow) analysis for a stock
+  ///
+  /// [symbol] - Stock symbol (e.g., 'AAPL')
+  /// Returns detailed DCF valuation analysis
+  Future<DcfAnalysis?> getCustomDcfAnalysis(String symbol) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('📊 Fetching custom DCF analysis for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/custom-discounted-cash-flow?symbol=$cleanSymbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ DCF analysis not available for $cleanSymbol');
+        return null;
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No DCF analysis data for $cleanSymbol');
+        return null;
+      }
+
+      final dcf = DcfAnalysis.fromJson(data.first);
+      debugPrint(
+        '📊 Loaded DCF analysis for $cleanSymbol: Fair Value \$${dcf.equityValuePerShare?.toStringAsFixed(2)}',
+      );
+      return dcf;
+    } catch (e) {
+      debugPrint('❌ Error fetching DCF analysis for $symbol: $e');
+      return null;
+    }
+  }
+
+  /// Get key financial metrics for a stock
+  ///
+  /// [symbol] - Stock symbol (e.g., 'AAPL')
+  /// [limit] - Number of periods to fetch (default: 5)
+  /// [period] - Period type ('annual' or 'quarter', default: 'annual')
+  /// Returns comprehensive financial metrics
+  Future<List<KeyMetrics>> getKeyMetrics(
+    String symbol, {
+    int limit = 5,
+    String period = 'annual',
+  }) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('📈 Fetching key metrics for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/key-metrics?symbol=$cleanSymbol&limit=$limit&period=$period&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Key metrics not available for $cleanSymbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No key metrics data for $cleanSymbol');
+        return [];
+      }
+
+      final metrics = data.map((item) => KeyMetrics.fromJson(item)).toList();
+      debugPrint(
+        '📈 Loaded ${metrics.length} key metrics periods for $cleanSymbol',
+      );
+      return metrics;
+    } catch (e) {
+      debugPrint('❌ Error fetching key metrics for $symbol: $e');
       return [];
     }
   }
@@ -849,16 +988,639 @@ class StockDetails {
   final Stock stock;
   final List<Map<String, dynamic>> chartData;
   final List<Map<String, dynamic>> news;
+  final PriceTargetConsensus? priceTargetConsensus;
 
   StockDetails({
     required this.stock,
     required this.chartData,
     required this.news,
+    this.priceTargetConsensus,
   });
 
   @override
   String toString() {
-    return 'StockDetails(symbol: ${stock.symbol}, chartPoints: ${chartData.length}, newsItems: ${news.length})';
+    return 'StockDetails(symbol: ${stock.symbol}, chartPoints: ${chartData.length}, newsItems: ${news.length}, hasTargets: ${priceTargetConsensus != null})';
+  }
+}
+
+/// Price Target Consensus data from analysts
+class PriceTargetConsensus {
+  final String symbol;
+  final double? targetHigh;
+  final double? targetLow;
+  final double? targetConsensus;
+  final double? targetMedian;
+  final int? numberOfAnalysts;
+
+  PriceTargetConsensus({
+    required this.symbol,
+    this.targetHigh,
+    this.targetLow,
+    this.targetConsensus,
+    this.targetMedian,
+    this.numberOfAnalysts,
+  });
+
+  factory PriceTargetConsensus.fromJson(Map<String, dynamic> json) {
+    return PriceTargetConsensus(
+      symbol: json['symbol']?.toString() ?? '',
+      targetHigh: _parseDouble(json['targetHigh']),
+      targetLow: _parseDouble(json['targetLow']),
+      targetConsensus: _parseDouble(json['targetConsensus']),
+      targetMedian: _parseDouble(json['targetMedian']),
+      numberOfAnalysts: _parseInt(json['numberOfAnalysts']),
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Helper method to safely parse int from dynamic value
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  /// Get formatted target high price
+  String get formattedTargetHigh {
+    if (targetHigh == null) return 'N/A';
+    return '\$${targetHigh!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted target low price
+  String get formattedTargetLow {
+    if (targetLow == null) return 'N/A';
+    return '\$${targetLow!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted target consensus price
+  String get formattedTargetConsensus {
+    if (targetConsensus == null) return 'N/A';
+    return '\$${targetConsensus!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted target median price
+  String get formattedTargetMedian {
+    if (targetMedian == null) return 'N/A';
+    return '\$${targetMedian!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted number of analysts
+  String get formattedAnalystCount {
+    if (numberOfAnalysts == null) return 'N/A';
+    return '${numberOfAnalysts!} analysts';
+  }
+
+  /// Calculate potential upside/downside based on current price
+  String getPotentialReturn(double currentPrice) {
+    if (targetConsensus == null) return 'N/A';
+
+    final potential = ((targetConsensus! - currentPrice) / currentPrice) * 100;
+    final sign = potential >= 0 ? '+' : '';
+    return '$sign${potential.toStringAsFixed(1)}%';
+  }
+
+  /// Check if consensus is bullish (consensus target > current price)
+  bool isBullish(double currentPrice) {
+    if (targetConsensus == null) return false;
+    return targetConsensus! > currentPrice;
+  }
+
+  @override
+  String toString() {
+    return 'PriceTargetConsensus(symbol: $symbol, consensus: $targetConsensus, analysts: $numberOfAnalysts)';
+  }
+}
+
+/// Discounted Cash Flow (DCF) Analysis model
+class DcfAnalysis {
+  final String symbol;
+  final String? year;
+  final double? revenue;
+  final double? revenuePercentage;
+  final double? ebitda;
+  final double? ebitdaPercentage;
+  final double? ebit;
+  final double? ebitPercentage;
+  final double? depreciation;
+  final double? depreciationPercentage;
+  final double? totalCash;
+  final double? totalCashPercentage;
+  final double? receivables;
+  final double? receivablesPercentage;
+  final double? inventories;
+  final double? inventoriesPercentage;
+  final double? payable;
+  final double? payablePercentage;
+  final double? capitalExpenditure;
+  final double? capitalExpenditurePercentage;
+  final double? price;
+  final double? beta;
+  final double? dilutedSharesOutstanding;
+  final double? costOfDebt;
+  final double? taxRate;
+  final double? afterTaxCostOfDebt;
+  final double? riskFreeRate;
+  final double? marketRiskPremium;
+  final double? costOfEquity;
+  final double? totalDebt;
+  final double? totalEquity;
+  final double? totalCapital;
+  final double? debtWeighting;
+  final double? equityWeighting;
+  final double? wacc;
+  final double? taxRateCash;
+  final double? ebiat;
+  final double? ufcf;
+  final double? sumPvUfcf;
+  final double? longTermGrowthRate;
+  final double? terminalValue;
+  final double? presentTerminalValue;
+  final double? enterpriseValue;
+  final double? netDebt;
+  final double? equityValue;
+  final double? equityValuePerShare;
+  final double? freeCashFlowT1;
+
+  DcfAnalysis({
+    required this.symbol,
+    this.year,
+    this.revenue,
+    this.revenuePercentage,
+    this.ebitda,
+    this.ebitdaPercentage,
+    this.ebit,
+    this.ebitPercentage,
+    this.depreciation,
+    this.depreciationPercentage,
+    this.totalCash,
+    this.totalCashPercentage,
+    this.receivables,
+    this.receivablesPercentage,
+    this.inventories,
+    this.inventoriesPercentage,
+    this.payable,
+    this.payablePercentage,
+    this.capitalExpenditure,
+    this.capitalExpenditurePercentage,
+    this.price,
+    this.beta,
+    this.dilutedSharesOutstanding,
+    this.costOfDebt,
+    this.taxRate,
+    this.afterTaxCostOfDebt,
+    this.riskFreeRate,
+    this.marketRiskPremium,
+    this.costOfEquity,
+    this.totalDebt,
+    this.totalEquity,
+    this.totalCapital,
+    this.debtWeighting,
+    this.equityWeighting,
+    this.wacc,
+    this.taxRateCash,
+    this.ebiat,
+    this.ufcf,
+    this.sumPvUfcf,
+    this.longTermGrowthRate,
+    this.terminalValue,
+    this.presentTerminalValue,
+    this.enterpriseValue,
+    this.netDebt,
+    this.equityValue,
+    this.equityValuePerShare,
+    this.freeCashFlowT1,
+  });
+
+  factory DcfAnalysis.fromJson(Map<String, dynamic> json) {
+    return DcfAnalysis(
+      symbol: json['symbol']?.toString() ?? '',
+      year: json['year']?.toString(),
+      revenue: _parseDouble(json['revenue']),
+      revenuePercentage: _parseDouble(json['revenuePercentage']),
+      ebitda: _parseDouble(json['ebitda']),
+      ebitdaPercentage: _parseDouble(json['ebitdaPercentage']),
+      ebit: _parseDouble(json['ebit']),
+      ebitPercentage: _parseDouble(json['ebitPercentage']),
+      depreciation: _parseDouble(json['depreciation']),
+      depreciationPercentage: _parseDouble(json['depreciationPercentage']),
+      totalCash: _parseDouble(json['totalCash']),
+      totalCashPercentage: _parseDouble(json['totalCashPercentage']),
+      receivables: _parseDouble(json['receivables']),
+      receivablesPercentage: _parseDouble(json['receivablesPercentage']),
+      inventories: _parseDouble(json['inventories']),
+      inventoriesPercentage: _parseDouble(json['inventoriesPercentage']),
+      payable: _parseDouble(json['payable']),
+      payablePercentage: _parseDouble(json['payablePercentage']),
+      capitalExpenditure: _parseDouble(json['capitalExpenditure']),
+      capitalExpenditurePercentage: _parseDouble(
+        json['capitalExpenditurePercentage'],
+      ),
+      price: _parseDouble(json['price']),
+      beta: _parseDouble(json['beta']),
+      dilutedSharesOutstanding: _parseDouble(json['dilutedSharesOutstanding']),
+      costOfDebt: _parseDouble(json['costofDebt']),
+      taxRate: _parseDouble(json['taxRate']),
+      afterTaxCostOfDebt: _parseDouble(json['afterTaxCostOfDebt']),
+      riskFreeRate: _parseDouble(json['riskFreeRate']),
+      marketRiskPremium: _parseDouble(json['marketRiskPremium']),
+      costOfEquity: _parseDouble(json['costOfEquity']),
+      totalDebt: _parseDouble(json['totalDebt']),
+      totalEquity: _parseDouble(json['totalEquity']),
+      totalCapital: _parseDouble(json['totalCapital']),
+      debtWeighting: _parseDouble(json['debtWeighting']),
+      equityWeighting: _parseDouble(json['equityWeighting']),
+      wacc: _parseDouble(json['wacc']),
+      taxRateCash: _parseDouble(json['taxRateCash']),
+      ebiat: _parseDouble(json['ebiat']),
+      ufcf: _parseDouble(json['ufcf']),
+      sumPvUfcf: _parseDouble(json['sumPvUfcf']),
+      longTermGrowthRate: _parseDouble(json['longTermGrowthRate']),
+      terminalValue: _parseDouble(json['terminalValue']),
+      presentTerminalValue: _parseDouble(json['presentTerminalValue']),
+      enterpriseValue: _parseDouble(json['enterpriseValue']),
+      netDebt: _parseDouble(json['netDebt']),
+      equityValue: _parseDouble(json['equityValue']),
+      equityValuePerShare: _parseDouble(json['equityValuePerShare']),
+      freeCashFlowT1: _parseDouble(json['freeCashFlowT1']),
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Get formatted equity value per share (DCF fair value)
+  String get formattedFairValue {
+    if (equityValuePerShare == null) return 'N/A';
+    return '\$${equityValuePerShare!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted current price
+  String get formattedCurrentPrice {
+    if (price == null) return 'N/A';
+    return '\$${price!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted WACC (Weighted Average Cost of Capital)
+  String get formattedWacc {
+    if (wacc == null) return 'N/A';
+    return '${wacc!.toStringAsFixed(2)}%';
+  }
+
+  /// Get formatted enterprise value
+  String get formattedEnterpriseValue {
+    if (enterpriseValue == null) return 'N/A';
+    final value = enterpriseValue! / 1000000000; // Convert to billions
+    return '\$${value.toStringAsFixed(2)}B';
+  }
+
+  /// Calculate upside/downside potential
+  String getValuationGap() {
+    if (equityValuePerShare == null || price == null) return 'N/A';
+
+    final gap = ((equityValuePerShare! - price!) / price!) * 100;
+    final sign = gap >= 0 ? '+' : '';
+    return '$sign${gap.toStringAsFixed(1)}%';
+  }
+
+  /// Check if stock is undervalued according to DCF
+  bool get isUndervalued {
+    if (equityValuePerShare == null || price == null) return false;
+    return equityValuePerShare! > price!;
+  }
+
+  /// Get investment recommendation based on DCF
+  String get recommendation {
+    if (equityValuePerShare == null || price == null) return 'N/A';
+
+    final upside = ((equityValuePerShare! - price!) / price!) * 100;
+
+    if (upside > 20) return 'Strong Buy';
+    if (upside > 10) return 'Buy';
+    if (upside > -10) return 'Hold';
+    if (upside > -20) return 'Sell';
+    return 'Strong Sell';
+  }
+
+  /// Get color for recommendation
+  String get recommendationColor {
+    switch (recommendation) {
+      case 'Strong Buy':
+      case 'Buy':
+        return 'green';
+      case 'Hold':
+        return 'orange';
+      case 'Sell':
+      case 'Strong Sell':
+        return 'red';
+      default:
+        return 'gray';
+    }
+  }
+
+  @override
+  String toString() {
+    return 'DcfAnalysis(symbol: $symbol, fairValue: $equityValuePerShare, currentPrice: $price)';
+  }
+}
+
+/// Key Financial Metrics model
+class KeyMetrics {
+  final String symbol;
+  final String? date;
+  final String? fiscalYear;
+  final String? period;
+  final String? reportedCurrency;
+  final double? marketCap;
+  final double? enterpriseValue;
+  final double? evToSales;
+  final double? evToOperatingCashFlow;
+  final double? evToFreeCashFlow;
+  final double? evToEBITDA;
+  final double? netDebtToEBITDA;
+  final double? currentRatio;
+  final double? incomeQuality;
+  final double? grahamNumber;
+  final double? grahamNetNet;
+  final double? taxBurden;
+  final double? interestBurden;
+  final double? workingCapital;
+  final double? investedCapital;
+  final double? returnOnAssets;
+  final double? operatingReturnOnAssets;
+  final double? returnOnTangibleAssets;
+  final double? returnOnEquity;
+  final double? returnOnInvestedCapital;
+  final double? returnOnCapitalEmployed;
+  final double? earningsYield;
+  final double? freeCashFlowYield;
+  final double? capexToOperatingCashFlow;
+  final double? capexToDepreciation;
+  final double? capexToRevenue;
+  final double? salesGeneralAndAdministrativeToRevenue;
+  final double? researchAndDevelopementToRevenue;
+  final double? stockBasedCompensationToRevenue;
+  final double? intangiblesToTotalAssets;
+  final double? averageReceivables;
+  final double? averagePayables;
+  final double? averageInventory;
+  final double? daysOfSalesOutstanding;
+  final double? daysOfPayablesOutstanding;
+  final double? daysOfInventoryOutstanding;
+  final double? operatingCycle;
+  final double? cashConversionCycle;
+  final double? freeCashFlowToEquity;
+  final double? freeCashFlowToFirm;
+  final double? tangibleAssetValue;
+  final double? netCurrentAssetValue;
+
+  KeyMetrics({
+    required this.symbol,
+    this.date,
+    this.fiscalYear,
+    this.period,
+    this.reportedCurrency,
+    this.marketCap,
+    this.enterpriseValue,
+    this.evToSales,
+    this.evToOperatingCashFlow,
+    this.evToFreeCashFlow,
+    this.evToEBITDA,
+    this.netDebtToEBITDA,
+    this.currentRatio,
+    this.incomeQuality,
+    this.grahamNumber,
+    this.grahamNetNet,
+    this.taxBurden,
+    this.interestBurden,
+    this.workingCapital,
+    this.investedCapital,
+    this.returnOnAssets,
+    this.operatingReturnOnAssets,
+    this.returnOnTangibleAssets,
+    this.returnOnEquity,
+    this.returnOnInvestedCapital,
+    this.returnOnCapitalEmployed,
+    this.earningsYield,
+    this.freeCashFlowYield,
+    this.capexToOperatingCashFlow,
+    this.capexToDepreciation,
+    this.capexToRevenue,
+    this.salesGeneralAndAdministrativeToRevenue,
+    this.researchAndDevelopementToRevenue,
+    this.stockBasedCompensationToRevenue,
+    this.intangiblesToTotalAssets,
+    this.averageReceivables,
+    this.averagePayables,
+    this.averageInventory,
+    this.daysOfSalesOutstanding,
+    this.daysOfPayablesOutstanding,
+    this.daysOfInventoryOutstanding,
+    this.operatingCycle,
+    this.cashConversionCycle,
+    this.freeCashFlowToEquity,
+    this.freeCashFlowToFirm,
+    this.tangibleAssetValue,
+    this.netCurrentAssetValue,
+  });
+
+  factory KeyMetrics.fromJson(Map<String, dynamic> json) {
+    return KeyMetrics(
+      symbol: json['symbol']?.toString() ?? '',
+      date: json['date']?.toString(),
+      fiscalYear: json['fiscalYear']?.toString(),
+      period: json['period']?.toString(),
+      reportedCurrency: json['reportedCurrency']?.toString(),
+      marketCap: _parseDouble(json['marketCap']),
+      enterpriseValue: _parseDouble(json['enterpriseValue']),
+      evToSales: _parseDouble(json['evToSales']),
+      evToOperatingCashFlow: _parseDouble(json['evToOperatingCashFlow']),
+      evToFreeCashFlow: _parseDouble(json['evToFreeCashFlow']),
+      evToEBITDA: _parseDouble(json['evToEBITDA']),
+      netDebtToEBITDA: _parseDouble(json['netDebtToEBITDA']),
+      currentRatio: _parseDouble(json['currentRatio']),
+      incomeQuality: _parseDouble(json['incomeQuality']),
+      grahamNumber: _parseDouble(json['grahamNumber']),
+      grahamNetNet: _parseDouble(json['grahamNetNet']),
+      taxBurden: _parseDouble(json['taxBurden']),
+      interestBurden: _parseDouble(json['interestBurden']),
+      workingCapital: _parseDouble(json['workingCapital']),
+      investedCapital: _parseDouble(json['investedCapital']),
+      returnOnAssets: _parseDouble(json['returnOnAssets']),
+      operatingReturnOnAssets: _parseDouble(json['operatingReturnOnAssets']),
+      returnOnTangibleAssets: _parseDouble(json['returnOnTangibleAssets']),
+      returnOnEquity: _parseDouble(json['returnOnEquity']),
+      returnOnInvestedCapital: _parseDouble(json['returnOnInvestedCapital']),
+      returnOnCapitalEmployed: _parseDouble(json['returnOnCapitalEmployed']),
+      earningsYield: _parseDouble(json['earningsYield']),
+      freeCashFlowYield: _parseDouble(json['freeCashFlowYield']),
+      capexToOperatingCashFlow: _parseDouble(json['capexToOperatingCashFlow']),
+      capexToDepreciation: _parseDouble(json['capexToDepreciation']),
+      capexToRevenue: _parseDouble(json['capexToRevenue']),
+      salesGeneralAndAdministrativeToRevenue: _parseDouble(
+        json['salesGeneralAndAdministrativeToRevenue'],
+      ),
+      researchAndDevelopementToRevenue: _parseDouble(
+        json['researchAndDevelopementToRevenue'],
+      ),
+      stockBasedCompensationToRevenue: _parseDouble(
+        json['stockBasedCompensationToRevenue'],
+      ),
+      intangiblesToTotalAssets: _parseDouble(json['intangiblesToTotalAssets']),
+      averageReceivables: _parseDouble(json['averageReceivables']),
+      averagePayables: _parseDouble(json['averagePayables']),
+      averageInventory: _parseDouble(json['averageInventory']),
+      daysOfSalesOutstanding: _parseDouble(json['daysOfSalesOutstanding']),
+      daysOfPayablesOutstanding: _parseDouble(
+        json['daysOfPayablesOutstanding'],
+      ),
+      daysOfInventoryOutstanding: _parseDouble(
+        json['daysOfInventoryOutstanding'],
+      ),
+      operatingCycle: _parseDouble(json['operatingCycle']),
+      cashConversionCycle: _parseDouble(json['cashConversionCycle']),
+      freeCashFlowToEquity: _parseDouble(json['freeCashFlowToEquity']),
+      freeCashFlowToFirm: _parseDouble(json['freeCashFlowToFirm']),
+      tangibleAssetValue: _parseDouble(json['tangibleAssetValue']),
+      netCurrentAssetValue: _parseDouble(json['netCurrentAssetValue']),
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Get formatted market cap
+  String get formattedMarketCap {
+    if (marketCap == null) return 'N/A';
+    final value = marketCap! / 1000000000; // Convert to billions
+    return '\$${value.toStringAsFixed(2)}B';
+  }
+
+  /// Get formatted enterprise value
+  String get formattedEnterpriseValue {
+    if (enterpriseValue == null) return 'N/A';
+    final value = enterpriseValue! / 1000000000; // Convert to billions
+    return '\$${value.toStringAsFixed(2)}B';
+  }
+
+  /// Get formatted working capital
+  String get formattedWorkingCapital {
+    if (workingCapital == null) return 'N/A';
+    final value = workingCapital! / 1000000000; // Convert to billions
+    final sign = value >= 0 ? '' : '-';
+    return '$sign\$${value.abs().toStringAsFixed(2)}B';
+  }
+
+  /// Get formatted percentage for ratios
+  String formatPercentage(double? value, {int decimals = 2}) {
+    if (value == null) return 'N/A';
+    final percentage = value * 100;
+    return '${percentage.toStringAsFixed(decimals)}%';
+  }
+
+  /// Get formatted ratio
+  String formatRatio(double? value, {int decimals = 2}) {
+    if (value == null) return 'N/A';
+    return value.toStringAsFixed(decimals);
+  }
+
+  /// Get formatted days
+  String formatDays(double? value) {
+    if (value == null) return 'N/A';
+    return '${value.toStringAsFixed(0)} days';
+  }
+
+  /// Get overall financial health score (0-100)
+  int get financialHealthScore {
+    int score = 50; // Start with neutral score
+
+    // Current Ratio (good: >1.5, ok: >1.0, poor: <1.0)
+    if (currentRatio != null) {
+      if (currentRatio! > 1.5)
+        score += 10;
+      else if (currentRatio! > 1.0)
+        score += 5;
+      else
+        score -= 10;
+    }
+
+    // Return on Equity (good: >15%, ok: >10%, poor: <5%)
+    if (returnOnEquity != null) {
+      if (returnOnEquity! > 0.15)
+        score += 15;
+      else if (returnOnEquity! > 0.10)
+        score += 10;
+      else if (returnOnEquity! < 0.05)
+        score -= 10;
+    }
+
+    // Return on Assets (good: >10%, ok: >5%, poor: <2%)
+    if (returnOnAssets != null) {
+      if (returnOnAssets! > 0.10)
+        score += 10;
+      else if (returnOnAssets! > 0.05)
+        score += 5;
+      else if (returnOnAssets! < 0.02)
+        score -= 10;
+    }
+
+    // Income Quality (good: >1.0, ok: >0.8, poor: <0.5)
+    if (incomeQuality != null) {
+      if (incomeQuality! > 1.0)
+        score += 10;
+      else if (incomeQuality! > 0.8)
+        score += 5;
+      else if (incomeQuality! < 0.5)
+        score -= 10;
+    }
+
+    // Free Cash Flow Yield (good: >5%, ok: >2%, poor: <0%)
+    if (freeCashFlowYield != null) {
+      if (freeCashFlowYield! > 0.05)
+        score += 10;
+      else if (freeCashFlowYield! > 0.02)
+        score += 5;
+      else if (freeCashFlowYield! < 0)
+        score -= 15;
+    }
+
+    return score.clamp(0, 100);
+  }
+
+  /// Get financial health description
+  String get financialHealthDescription {
+    final score = financialHealthScore;
+    if (score >= 80) return 'Excellent';
+    if (score >= 65) return 'Good';
+    if (score >= 50) return 'Average';
+    if (score >= 35) return 'Below Average';
+    return 'Poor';
+  }
+
+  @override
+  String toString() {
+    return 'KeyMetrics(symbol: $symbol, fiscalYear: $fiscalYear, marketCap: $marketCap)';
   }
 }
 

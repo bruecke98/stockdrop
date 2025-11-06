@@ -3,6 +3,7 @@ import 'home_screen.dart';
 import 'filter_screen.dart';
 import 'favorites_screen.dart';
 import 'settings_screen.dart';
+import 'industry_screen.dart';
 
 /// Main navigation wrapper with bottom navigation bar
 class MainNavigationScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const FilterScreen(),
+    const IndustryScreen(),
     const FavoritesScreen(),
     const SettingsScreen(),
   ];
@@ -32,6 +34,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       icon: Icon(Icons.filter_list_outlined),
       activeIcon: Icon(Icons.filter_list),
       label: 'Filters',
+    ),
+    const BottomNavigationBarItem(
+      icon: Icon(Icons.business_outlined),
+      activeIcon: Icon(Icons.business),
+      label: 'Industries',
     ),
     const BottomNavigationBarItem(
       icon: Icon(Icons.favorite_outline),
