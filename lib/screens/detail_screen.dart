@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // Import the new ChartWidget
 import '../widgets/chart_widget.dart';
 import '../services/api_service.dart';
+import '../models/stock.dart';
 
 /// Detail screen for StockDrop app
 /// Shows detailed stock information including price, chart, and news
@@ -25,9 +26,12 @@ class _DetailScreenState extends State<DetailScreen> {
   PriceTargetConsensus? _priceTarget;
   DcfAnalysis? _dcfAnalysis;
   List<KeyMetrics> _keyMetrics = [];
+  CompanyProfile? _companyProfile;
   bool _isLoading = true;
   bool _isFavorite = false;
   bool _isTogglingFavorite = false;
+  bool _isDescriptionExpanded = false;
+  bool _isDcfExtendedView = false;
   String? _error;
   String? _stockSymbol;
 
@@ -127,6 +131,8 @@ class _DetailScreenState extends State<DetailScreen> {
           children: [
             _buildStockHeader(theme),
             const SizedBox(height: 24),
+            _buildCompanyProfileSection(theme),
+            const SizedBox(height: 24),
             _buildPriceChart(theme),
             const SizedBox(height: 24),
             _buildPriceTargetSection(theme),
@@ -154,17 +160,27 @@ class _DetailScreenState extends State<DetailScreen> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                  child: Text(
-                    stock.symbol.length >= 2
-                        ? stock.symbol.substring(0, 2).toUpperCase()
-                        : stock.symbol.toUpperCase(),
-                    style: TextStyle(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.network(
+                      'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: theme.colorScheme.primary.withOpacity(0.1),
+                          child: Icon(
+                            Icons.business,
+                            color: theme.colorScheme.primary,
+                            size: 24,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -242,94 +258,15 @@ class _DetailScreenState extends State<DetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            // First row: Day High, Day Low, Volume
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    'Day High',
-                    stock.dayHigh != null
-                        ? '\$${stock.dayHigh!.toStringAsFixed(2)}'
-                        : 'N/A',
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    'Day Low',
-                    stock.dayLow != null
-                        ? '\$${stock.dayLow!.toStringAsFixed(2)}'
-                        : 'N/A',
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem('Volume', stock.formattedVolume, theme),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Second row: Market Cap, Exchange, Open
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    'Market Cap',
-                    stock.formattedMarketCap,
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    'Exchange',
-                    stock.exchange ?? 'N/A',
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    'Open',
-                    stock.open != null
-                        ? '\$${stock.open!.toStringAsFixed(2)}'
-                        : 'N/A',
-                    theme,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Third row: Previous Close, 52W High, 52W Low
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    'Prev Close',
-                    stock.previousClose != null
-                        ? '\$${stock.previousClose!.toStringAsFixed(2)}'
-                        : 'N/A',
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    '52W High',
-                    stock.yearHigh != null
-                        ? '\$${stock.yearHigh!.toStringAsFixed(2)}'
-                        : 'N/A',
-                    theme,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    '52W Low',
-                    stock.yearLow != null
-                        ? '\$${stock.yearLow!.toStringAsFixed(2)}'
-                        : 'N/A',
-                    theme,
-                  ),
-                ),
-              ],
-            ),
+            // Day Range Visual Indicator
+            if (stock.dayLow != null && stock.dayHigh != null)
+              _buildRangeIndicator(
+                'Current Price in Today\'s Range',
+                stock.price,
+                stock.dayLow!,
+                stock.dayHigh!,
+                theme,
+              ),
             const SizedBox(height: 16),
             // 52-Week Range Visual Indicator
             if (stock.yearLow != null && stock.yearHigh != null)
@@ -341,90 +278,12 @@ class _DetailScreenState extends State<DetailScreen> {
                 theme,
               ),
             const SizedBox(height: 16),
-            // Fourth row: 50D Avg, 200D Avg, Day Range
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatItem(
-                    '50D Avg',
-                    stock.formattedPriceAvg50,
-                    theme,
-                    isPositive: stock.isAbove50DayAvg,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    '200D Avg',
-                    stock.formattedPriceAvg200,
-                    theme,
-                    isPositive: stock.isAbove200DayAvg,
-                  ),
-                ),
-                Expanded(
-                  child: _buildStatItem(
-                    'Day Range',
-                    stock.formattedDayRange,
-                    theme,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Day Range Visual Indicator
-            if (stock.dayLow != null && stock.dayHigh != null)
-              _buildRangeIndicator(
-                'Current Price in Today\'s Range',
-                stock.price,
-                stock.dayLow!,
-                stock.dayHigh!,
-                theme,
-              ),
+            // Market Cap with categorization
+            if (stock.marketCap != null)
+              _buildMarketCapDisplay(stock.marketCap!, theme),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildStatItem(
-    String label,
-    String value,
-    ThemeData theme, {
-    bool? isPositive,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            if (isPositive != null) ...[
-              Icon(
-                isPositive ? Icons.trending_up : Icons.trending_down,
-                size: 14,
-                color: isPositive ? Colors.green : Colors.red,
-              ),
-              const SizedBox(width: 4),
-            ],
-            Expanded(
-              child: Text(
-                value,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: isPositive != null
-                      ? (isPositive ? Colors.green : Colors.red)
-                      : null,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -577,6 +436,379 @@ class _DetailScreenState extends State<DetailScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMarketCapDisplay(double marketCap, ThemeData theme) {
+    // Determine market cap category
+    String category;
+    Color categoryColor;
+
+    if (marketCap >= 200000000000) {
+      // $200B+
+      category = 'Mega Cap';
+      categoryColor = Colors.purple;
+    } else if (marketCap >= 10000000000) {
+      // $10B+
+      category = 'Large Cap';
+      categoryColor = Colors.blue;
+    } else if (marketCap >= 2000000000) {
+      // $2B+
+      category = 'Mid Cap';
+      categoryColor = Colors.green;
+    } else if (marketCap >= 300000000) {
+      // $300M+
+      category = 'Small Cap';
+      categoryColor = Colors.orange;
+    } else if (marketCap >= 50000000) {
+      // $50M+
+      category = 'Micro Cap';
+      categoryColor = Colors.red;
+    } else {
+      category = 'Nano Cap';
+      categoryColor = Colors.grey;
+    }
+
+    // Format market cap value
+    String formattedValue;
+    if (marketCap >= 1000000000000) {
+      // $1T+
+      formattedValue = '\$${(marketCap / 1000000000000).toStringAsFixed(2)}T';
+    } else if (marketCap >= 1000000000) {
+      // $1B+
+      formattedValue = '\$${(marketCap / 1000000000).toStringAsFixed(2)}B';
+    } else if (marketCap >= 1000000) {
+      // $1M+
+      formattedValue = '\$${(marketCap / 1000000).toStringAsFixed(2)}M';
+    } else {
+      formattedValue = '\$${marketCap.toStringAsFixed(0)}';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outline.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          Text(
+            'Market Capitalization',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Market cap value and category
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                formattedValue,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: categoryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: categoryColor.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  category,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: categoryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompanyProfileSection(ThemeData theme) {
+    if (_companyProfile == null) {
+      return const SizedBox.shrink();
+    }
+
+    final profile = _companyProfile!;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.business,
+                  color: theme.colorScheme.primary,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Company Profile',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Industry and Sector
+            Row(
+              children: [
+                if (profile.industry != null) ...[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Industry',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          profile.industry!,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (profile.sector != null) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sector',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          profile.sector!,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // CEO
+            if (profile.ceo != null) ...[
+              Text(
+                'CEO',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(profile.ceo!, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 16),
+            ],
+
+            // Full Time Employees
+            if (profile.fullTimeEmployees != null) ...[
+              Text(
+                'Full Time Employees',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                profile.fullTimeEmployees!,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Description
+            if (profile.description != null &&
+                profile.description!.isNotEmpty) ...[
+              Text(
+                'Description',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isDescriptionExpanded
+                        ? profile.description!
+                        : _getFirstSentence(profile.description!),
+                    style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                  ),
+                  if (!_isDescriptionExpanded &&
+                      _hasMoreThanOneSentence(profile.description!)) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isDescriptionExpanded = true;
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Read more',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ] else if (_isDescriptionExpanded) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _isDescriptionExpanded = false;
+                        });
+                      },
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'Read less',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Additional details
+            Row(
+              children: [
+                if (profile.country != null) ...[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Country',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          profile.country!,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (profile.exchange != null) ...[
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Exchange',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          profile.exchange!,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+
+            // Website
+            if (profile.website != null) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(
+                    Icons.language,
+                    size: 16,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Website',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                profile.website!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -1177,137 +1409,53 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
 
-          // Fair Value vs Current Price
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: dcf.isUndervalued
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.red.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'DCF Fair Value',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        dcf.formattedFairValue,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: dcf.isUndervalued ? Colors.green : Colors.red,
-                        ),
-                      ),
-                    ],
-                  ),
+          // Toggle Button below header
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _isDcfExtendedView = !_isDcfExtendedView;
+                });
+              },
+              icon: Icon(
+                _isDcfExtendedView ? Icons.visibility_off : Icons.visibility,
+                size: 18,
+              ),
+              label: Text(
+                _isDcfExtendedView ? 'Simple' : 'Detailed',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Current Price',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '\$${currentPrice.toStringAsFixed(2)}',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+              style: TextButton.styleFrom(
+                foregroundColor: theme.colorScheme.primary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
                 ),
-                Column(
-                  children: [
-                    Icon(
-                      dcf.isUndervalued
-                          ? Icons.trending_up
-                          : Icons.trending_down,
-                      color: dcf.isUndervalued ? Colors.green : Colors.red,
-                      size: 32,
-                    ),
-                    Text(
-                      dcf.getValuationGap(),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: dcf.isUndervalued ? Colors.green : Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          // Key DCF Metrics
-          Row(
-            children: [
-              Expanded(
-                child: _buildDcfMetricItem(
-                  'WACC',
-                  dcf.formattedWacc,
-                  Icons.percent,
-                  theme,
-                ),
-              ),
-              Expanded(
-                child: _buildDcfMetricItem(
-                  'Enterprise Value',
-                  dcf.formattedEnterpriseValue,
-                  Icons.business,
-                  theme,
-                ),
-              ),
-            ],
-          ),
-
           const SizedBox(height: 16),
 
-          Row(
-            children: [
-              Expanded(
-                child: _buildDcfMetricItem(
-                  'Terminal Growth',
-                  dcf.longTermGrowthRate != null
-                      ? '${dcf.longTermGrowthRate!.toStringAsFixed(1)}%'
-                      : 'N/A',
-                  Icons.trending_up,
-                  theme,
-                ),
-              ),
-              Expanded(
-                child: _buildDcfMetricItem(
-                  'Beta',
-                  dcf.beta?.toStringAsFixed(2) ?? 'N/A',
-                  Icons.show_chart,
-                  theme,
-                ),
-              ),
-            ],
-          ),
+          if (_isDcfExtendedView) ...[
+            // Extended DCF View with detailed visualizations
+            _buildDcfCalculationFlow(theme, dcf),
+            const SizedBox(height: 24),
+            _buildDcfValuationComparison(theme, dcf, currentPrice),
+            const SizedBox(height: 24),
+            _buildDcfAssumptionsSection(theme, dcf),
+            const SizedBox(height: 20),
+          ] else ...[
+            // Simple DCF View
+            _buildSimpleDcfView(theme, dcf, currentPrice),
+            const SizedBox(height: 20),
+          ],
 
-          const SizedBox(height: 20),
-
-          // Investment Recommendation
+          // Investment Recommendation (always shown)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -1324,6 +1472,17 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
             child: Column(
               children: [
+                // "DCF Recommendation" label
+                Text(
+                  'DCF Recommendation',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                // Actual recommendation
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -1334,7 +1493,7 @@ class _DetailScreenState extends State<DetailScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'DCF Recommendation: ${dcf.recommendation}',
+                      dcf.recommendation,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: _getRecommendationColor(dcf.recommendation),
@@ -1360,6 +1519,1148 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Widget _buildSimpleDcfView(
+    ThemeData theme,
+    DcfAnalysis dcf,
+    double currentPrice,
+  ) {
+    return Column(
+      children: [
+        // Fair Value vs Current Price Comparison
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'DCF Fair Value',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    dcf.formattedFairValue,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: dcf.isUndervalued ? Colors.green : Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 40,
+              color: theme.colorScheme.outline.withOpacity(0.3),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Current Price',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${currentPrice.toStringAsFixed(2)}',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Upside/Downside
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: dcf.isUndervalued
+                ? Colors.green.withOpacity(0.1)
+                : Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: dcf.isUndervalued
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.red.withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                dcf.isUndervalued ? Icons.trending_up : Icons.trending_down,
+                color: dcf.isUndervalued ? Colors.green : Colors.red,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                dcf.getValuationGap(),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: dcf.isUndervalued ? Colors.green : Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Key DCF Metrics
+        Text(
+          'Key Valuation Inputs',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            Expanded(
+              child: _buildSimpleDcfMetricItem(
+                'WACC',
+                dcf.formattedWacc,
+                Icons.percent,
+                theme,
+              ),
+            ),
+            Expanded(
+              child: _buildSimpleDcfMetricItem(
+                'Beta',
+                dcf.beta?.toStringAsFixed(2) ?? 'N/A',
+                Icons.show_chart,
+                theme,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            Expanded(
+              child: _buildSimpleDcfMetricItem(
+                'Terminal Growth',
+                dcf.longTermGrowthRate != null
+                    ? '${dcf.longTermGrowthRate!.toStringAsFixed(1)}%'
+                    : 'N/A',
+                Icons.trending_up,
+                theme,
+              ),
+            ),
+            Expanded(
+              child: _buildSimpleDcfMetricItem(
+                'Risk-Free Rate',
+                dcf.riskFreeRate != null
+                    ? '${dcf.riskFreeRate!.toStringAsFixed(1)}%'
+                    : 'N/A',
+                Icons.account_balance,
+                theme,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimpleDcfMetricItem(
+    String label,
+    String value,
+    IconData icon,
+    ThemeData theme,
+  ) {
+    return Container(
+      margin: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: theme.colorScheme.primary, size: 16),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+              fontSize: 10,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 1),
+          Text(
+            value,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDcfCalculationFlow(ThemeData theme, DcfAnalysis dcf) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How DCF Fair Value is Calculated',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Step 1: Cost of Capital (WACC)
+        _buildDcfStep(
+          theme,
+          step: 1,
+          title: 'Calculate Cost of Capital (WACC)',
+          description:
+              'Weighted Average Cost of Capital combines cost of equity and debt',
+          visual: _buildWaccVisualization(theme, dcf),
+        ),
+
+        // Arrow
+        Center(
+          child: Icon(
+            Icons.arrow_downward,
+            color: theme.colorScheme.primary,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Step 2: Free Cash Flow
+        _buildDcfStep(
+          theme,
+          step: 2,
+          title: 'Project Free Cash Flows',
+          description: 'Estimate future cash flows available to all investors',
+          visual: _buildCashFlowVisualization(theme, dcf),
+        ),
+
+        // Arrow
+        Center(
+          child: Icon(
+            Icons.arrow_downward,
+            color: theme.colorScheme.primary,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Step 3: Terminal Value
+        _buildDcfStep(
+          theme,
+          step: 3,
+          title: 'Calculate Terminal Value',
+          description: 'Value of business beyond explicit forecast period',
+          visual: _buildTerminalValueVisualization(theme, dcf),
+        ),
+
+        // Arrow
+        Center(
+          child: Icon(
+            Icons.arrow_downward,
+            color: theme.colorScheme.primary,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Step 4: Present Value
+        _buildDcfStep(
+          theme,
+          step: 4,
+          title: 'Discount to Present Value',
+          description: 'Convert future values to today\'s dollars using WACC',
+          visual: _buildPresentValueVisualization(theme, dcf),
+        ),
+
+        // Arrow
+        Center(
+          child: Icon(
+            Icons.arrow_downward,
+            color: theme.colorScheme.primary,
+            size: 24,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Step 5: Fair Value per Share
+        _buildDcfStep(
+          theme,
+          step: 5,
+          title: 'Calculate Fair Value per Share',
+          description: 'Divide equity value by diluted shares outstanding',
+          visual: _buildFairValueVisualization(theme, dcf),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDcfStep(
+    ThemeData theme, {
+    required int step,
+    required String title,
+    required String description,
+    required Widget visual,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    step.toString(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onPrimary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          visual,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaccVisualization(ThemeData theme, DcfAnalysis dcf) {
+    final costOfEquity = dcf.costOfEquity ?? 0;
+    final afterTaxCostOfDebt = dcf.afterTaxCostOfDebt ?? 0;
+    final equityWeighting = dcf.equityWeighting ?? 0.7; // Default assumption
+    final debtWeighting = dcf.debtWeighting ?? 0.3; // Default assumption
+
+    return Column(
+      children: [
+        // WACC Formula
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'WACC = (Cost of Equity × % Equity) + (After-tax Cost of Debt × % Debt)',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w500,
+              fontFamily: 'monospace',
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Cost of Equity Breakdown
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Cost of Equity',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${costOfEquity.toStringAsFixed(1)}%',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  Text(
+                    'Risk-free + (Beta × Risk Premium)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            Container(width: 1, height: 40, color: theme.colorScheme.outline),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Cost of Debt',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${afterTaxCostOfDebt.toStringAsFixed(1)}%',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  Text(
+                    'After-tax',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Capital Structure Visualization
+        Text(
+          'Capital Structure',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 20,
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
+          child: Row(
+            children: [
+              Expanded(
+                flex: (equityWeighting * 100).round(),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.horizontal(
+                      left: Radius.circular(10),
+                      right: equityWeighting == 1.0
+                          ? Radius.circular(10)
+                          : Radius.zero,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${(equityWeighting * 100).toStringAsFixed(0)}% Equity',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: (debtWeighting * 100).round(),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.horizontal(
+                      right: Radius.circular(10),
+                      left: debtWeighting == 1.0
+                          ? Radius.circular(10)
+                          : Radius.zero,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${(debtWeighting * 100).toStringAsFixed(0)}% Debt',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Final WACC
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              'WACC: ${dcf.formattedWacc}',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCashFlowVisualization(ThemeData theme, DcfAnalysis dcf) {
+    // Show simplified cash flow projection
+    final years = ['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5'];
+    final cashFlows = [
+      dcf.ufcf ?? 0,
+      (dcf.ufcf ?? 0) * 1.05,
+      (dcf.ufcf ?? 0) * 1.10,
+      (dcf.ufcf ?? 0) * 1.15,
+      (dcf.ufcf ?? 0) * 1.20,
+    ];
+
+    return Column(
+      children: [
+        Text(
+          'Free Cash Flow (FCF) = EBIT × (1-tax) + Depreciation - CapEx',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontFamily: 'monospace',
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+
+        // Cash Flow Timeline
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(years.length, (index) {
+            return Column(
+              children: [
+                Container(
+                  width: 50,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '\$${(cashFlows[index] / 1000000).toStringAsFixed(0)}M',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green[700],
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  years[index],
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            );
+          }),
+        ),
+
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            'Projected FCF growing at ~5-10% annually',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTerminalValueVisualization(ThemeData theme, DcfAnalysis dcf) {
+    final terminalValue = dcf.terminalValue ?? 0;
+    final lastCashFlow = dcf.ufcf ?? 0;
+    final growthRate = dcf.longTermGrowthRate ?? 0.025; // 2.5% default
+    final wacc = (dcf.wacc ?? 10) / 100;
+
+    return Column(
+      children: [
+        Text(
+          'Terminal Value = Final Year FCF × (1 + g) ÷ (WACC - g)',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontFamily: 'monospace',
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+
+        // Terminal Value Calculation Breakdown
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Final FCF',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(lastCashFlow / 1000000).toStringAsFixed(0)}M',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.close, size: 16, color: theme.colorScheme.primary),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    '(1 + g)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(growthRate * 100).toStringAsFixed(1)}%',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.call_split, size: 16, color: theme.colorScheme.primary),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    '(WACC - g)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${((wacc - growthRate) * 100).toStringAsFixed(1)}%',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Result
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.purple.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.purple.withOpacity(0.3)),
+            ),
+            child: Text(
+              'Terminal Value: \$${((terminalValue / 1000000).toStringAsFixed(0))}M',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: Colors.purple[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPresentValueVisualization(ThemeData theme, DcfAnalysis dcf) {
+    final presentTerminalValue = dcf.presentTerminalValue ?? 0;
+    final sumPvUfcf = dcf.sumPvUfcf ?? 0;
+
+    return Column(
+      children: [
+        Text(
+          'Present Value = Future Value ÷ (1 + WACC)^n',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontFamily: 'monospace',
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+
+        // Present Value Breakdown
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'PV of FCFs',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(sumPvUfcf / 1000000).toStringAsFixed(0)}M',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.add, size: 16, color: theme.colorScheme.primary),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'PV of Terminal',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(presentTerminalValue / 1000000).toStringAsFixed(0)}M',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Result
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              'Enterprise Value: ${dcf.formattedEnterpriseValue}',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFairValueVisualization(ThemeData theme, DcfAnalysis dcf) {
+    final netDebt = dcf.netDebt ?? 0;
+    final equityValue = dcf.equityValue ?? 0;
+    final sharesOutstanding = dcf.dilutedSharesOutstanding ?? 1;
+
+    return Column(
+      children: [
+        Text(
+          'Fair Value per Share = Equity Value ÷ Diluted Shares Outstanding',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontFamily: 'monospace',
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+
+        // Equity Value Calculation
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Enterprise Value',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${dcf.formattedEnterpriseValue}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.remove, size: 16, color: theme.colorScheme.primary),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Net Debt',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(netDebt / 1000000).toStringAsFixed(0)}M',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        // Equals
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 40, height: 1, color: theme.colorScheme.outline),
+              const SizedBox(width: 8),
+              Text(
+                '=',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(width: 40, height: 1, color: theme.colorScheme.outline),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        // Equity Value
+        Center(
+          child: Column(
+            children: [
+              Text(
+                'Equity Value',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '\$${(equityValue / 1000000).toStringAsFixed(0)}M',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Per Share Calculation
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Equity Value',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '\$${(equityValue / 1000000).toStringAsFixed(0)}M',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.call_split, size: 16, color: theme.colorScheme.primary),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    'Shares',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${(sharesOutstanding / 1000000).toStringAsFixed(1)}M',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 8),
+
+        // Final Fair Value
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: dcf.isUndervalued ? Colors.green : Colors.red,
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: Text(
+              'DCF Fair Value: ${dcf.formattedFairValue}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDcfValuationComparison(
+    ThemeData theme,
+    DcfAnalysis dcf,
+    double currentPrice,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: dcf.isUndervalued
+            ? Colors.green.withOpacity(0.1)
+            : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'DCF Fair Value',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      dcf.formattedFairValue,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: dcf.isUndervalued ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Current Price',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '\$${currentPrice.toStringAsFixed(2)}',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                children: [
+                  Icon(
+                    dcf.isUndervalued ? Icons.trending_up : Icons.trending_down,
+                    color: dcf.isUndervalued ? Colors.green : Colors.red,
+                    size: 32,
+                  ),
+                  Text(
+                    dcf.getValuationGap(),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: dcf.isUndervalued ? Colors.green : Colors.red,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDcfAssumptionsSection(ThemeData theme, DcfAnalysis dcf) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Key Assumptions & Inputs',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Key Metrics Grid
+        Row(
+          children: [
+            Expanded(
+              child: _buildDcfMetricItem(
+                'WACC',
+                dcf.formattedWacc,
+                Icons.percent,
+                theme,
+              ),
+            ),
+            Expanded(
+              child: _buildDcfMetricItem(
+                'Beta',
+                dcf.beta?.toStringAsFixed(2) ?? 'N/A',
+                Icons.show_chart,
+                theme,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        Row(
+          children: [
+            Expanded(
+              child: _buildDcfMetricItem(
+                'Terminal Growth',
+                dcf.longTermGrowthRate != null
+                    ? '${dcf.longTermGrowthRate!.toStringAsFixed(1)}%'
+                    : 'N/A',
+                Icons.trending_up,
+                theme,
+              ),
+            ),
+            Expanded(
+              child: _buildDcfMetricItem(
+                'Risk-Free Rate',
+                dcf.riskFreeRate != null
+                    ? '${dcf.riskFreeRate!.toStringAsFixed(1)}%'
+                    : 'N/A',
+                Icons.account_balance,
+                theme,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildDcfMetricItem(
     String label,
     String value,
@@ -1367,6 +2668,7 @@ class _DetailScreenState extends State<DetailScreen> {
     ThemeData theme,
   ) {
     return Container(
+      margin: const EdgeInsets.all(4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
@@ -1862,6 +3164,7 @@ class _DetailScreenState extends State<DetailScreen> {
         _fetchPriceTarget(),
         _fetchDcfAnalysis(),
         _fetchKeyMetrics(),
+        _fetchCompanyProfile(),
       ]);
     } catch (e) {
       setState(() {
@@ -1965,6 +3268,19 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
+  Future<void> _fetchCompanyProfile() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _companyProfile = await apiService.getCompanyProfileDetails(
+        _stockSymbol!,
+      );
+    } catch (e) {
+      debugPrint('Error fetching company profile: $e');
+    }
+  }
+
   Future<void> _toggleFavorite() async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null || _stockSymbol == null) return;
@@ -2023,6 +3339,30 @@ class _DetailScreenState extends State<DetailScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
+  }
+
+  String _getFirstSentence(String text) {
+    // Find the first sentence by looking for the first period followed by a space or end of string
+    final firstPeriodIndex = text.indexOf('.');
+    if (firstPeriodIndex != -1) {
+      // Check if there's more content after the period
+      if (firstPeriodIndex < text.length - 1) {
+        return text.substring(0, firstPeriodIndex + 1);
+      }
+    }
+    // If no period found or it's at the end, return the whole text
+    return text;
+  }
+
+  bool _hasMoreThanOneSentence(String text) {
+    // Check if there's a period followed by more content
+    final firstPeriodIndex = text.indexOf('.');
+    if (firstPeriodIndex != -1 && firstPeriodIndex < text.length - 1) {
+      // Check if there's non-whitespace content after the period
+      final remainingText = text.substring(firstPeriodIndex + 1).trim();
+      return remainingText.isNotEmpty;
+    }
+    return false;
   }
 }
 

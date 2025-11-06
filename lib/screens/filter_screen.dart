@@ -43,12 +43,11 @@ class _FilterScreenState extends State<FilterScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Filter controls section
-          Expanded(
-            flex: _filtersApplied ? 1 : 2,
-            child: SingleChildScrollView(
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Filter controls section
+            Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,20 +148,21 @@ class _FilterScreenState extends State<FilterScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
-          ),
 
-          // Filtered results section
-          if (_filtersApplied) ...[
-            Container(
-              height: 1,
-              color: theme.colorScheme.outline.withOpacity(0.3),
-            ),
-            Expanded(flex: 2, child: _buildFilteredResults(theme)),
+            // Filtered results section
+            if (_filtersApplied) ...[
+              Container(
+                height: 1,
+                color: theme.colorScheme.outline.withOpacity(0.3),
+              ),
+              _buildFilteredResultsScrollable(theme),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -516,8 +516,8 @@ class _FilterScreenState extends State<FilterScreen> {
     });
   }
 
-  Widget _buildFilteredResults(ThemeData theme) {
-    return Container(
+  Widget _buildFilteredResultsScrollable(ThemeData theme) {
+    return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,100 +546,109 @@ class _FilterScreenState extends State<FilterScreen> {
           const SizedBox(height: 16),
 
           // Results list
-          Expanded(
-            child: _error != null
-                ? _buildErrorWidget(theme)
-                : _filteredStocks.isEmpty
-                ? _buildEmptyWidget(theme)
-                : ListView.builder(
-                    itemCount: _filteredStocks.length,
-                    itemBuilder: (context, index) {
-                      final stock = _filteredStocks[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: _getChangeColor(
-                              stock.changesPercentage,
-                              theme,
-                            ).withOpacity(0.1),
-                            child: Text(
-                              stock.symbol.substring(0, 2).toUpperCase(),
-                              style: TextStyle(
-                                color: _getChangeColor(
-                                  stock.changesPercentage,
-                                  theme,
-                                ),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            stock.symbol,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stock.name,
-                                style: theme.textTheme.bodyMedium,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Text(
-                                    'Vol: ${_formatVolume(stock.volume)}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '\$${stock.price.toStringAsFixed(2)}',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getChangeColor(
-                                    stock.changesPercentage,
-                                    theme,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${stock.changesPercentage >= 0 ? '+' : ''}${stock.changesPercentage.toStringAsFixed(1)}%',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+          if (_error != null) ...[
+            _buildErrorWidget(theme),
+          ] else if (_filteredStocks.isEmpty) ...[
+            _buildEmptyWidget(theme),
+          ] else ...[
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _filteredStocks.length,
+              itemBuilder: (context, index) {
+                final stock = _filteredStocks[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    onTap: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/detail',
+                        arguments: {'symbol': stock.symbol},
                       );
                     },
+                    leading: CircleAvatar(
+                      backgroundColor: _getChangeColor(
+                        stock.changesPercentage,
+                        theme,
+                      ).withOpacity(0.1),
+                      child: Text(
+                        stock.symbol.substring(0, 2).toUpperCase(),
+                        style: TextStyle(
+                          color: _getChangeColor(
+                            stock.changesPercentage,
+                            theme,
+                          ),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      stock.symbol,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          stock.name,
+                          style: theme.textTheme.bodyMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              'Vol: ${_formatVolume(stock.volume)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '\$${stock.price.toStringAsFixed(2)}',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getChangeColor(
+                              stock.changesPercentage,
+                              theme,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${stock.changesPercentage >= 0 ? '+' : ''}${stock.changesPercentage.toStringAsFixed(1)}%',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-          ),
+                );
+              },
+            ),
+          ],
         ],
       ),
     );

@@ -158,6 +158,76 @@ class ApiService {
     }
   }
 
+  /// Get stocks by sector
+  ///
+  /// [sector] - The sector to filter by (e.g., 'Technology', 'Healthcare')
+  /// Returns list of stocks in the specified sector
+  Future<List<Stock>> getStocksBySector(String sector) async {
+    try {
+      debugPrint('🏭 Fetching stocks for sector: $sector');
+
+      // Step 1: Get stock screener results filtered by sector
+      final screenerUrl = Uri.parse(
+        '$_baseUrl/stock-screener'
+        '?sector=${Uri.encodeComponent(sector)}'
+        '&marketCapMoreThan=500000000'
+        '&volumeMoreThan=500000'
+        '&limit=50'
+        '&apikey=$_apiKey',
+      );
+
+      final screenerResponse = await http.get(screenerUrl);
+
+      if (screenerResponse.statusCode != 200) {
+        throw ApiException(
+          'Stock screener failed',
+          screenerResponse.statusCode,
+          screenerResponse.body,
+        );
+      }
+
+      final List<dynamic> screenerData = json.decode(screenerResponse.body);
+
+      if (screenerData.isEmpty) {
+        debugPrint('🏭 No stocks found in sector: $sector');
+        return [];
+      }
+
+      // Extract symbols for quote lookup
+      final symbols = screenerData
+          .take(20) // Limit to first 20 for performance
+          .map((item) => item['symbol']?.toString())
+          .where((symbol) => symbol != null && symbol.isNotEmpty)
+          .cast<String>()
+          .toList();
+
+      if (symbols.isEmpty) {
+        debugPrint('🏭 No valid symbols found in sector: $sector');
+        return [];
+      }
+
+      // Step 2: Get real-time quotes for these symbols
+      final stocks = await _getMultipleQuotes(symbols);
+
+      // Step 3: Sort by market cap (largest first)
+      stocks.sort((a, b) => (b.marketCap ?? 0).compareTo(a.marketCap ?? 0));
+
+      final result = stocks.take(10).toList();
+      debugPrint('🏭 Found ${result.length} stocks in sector: $sector');
+
+      return result;
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      debugPrint('❌ Error in getStocksBySector: $e');
+      throw ApiException(
+        'Failed to fetch stocks for sector $sector',
+        0,
+        e.toString(),
+      );
+    }
+  }
+
   /// Get multiple stock quotes efficiently
   Future<List<Stock>> _getMultipleQuotes(List<String> symbols) async {
     try {
@@ -976,6 +1046,48 @@ class ApiService {
       return null;
     } catch (e) {
       debugPrint('❌ Error getting API usage: $e');
+      return null;
+    }
+  }
+
+  /// Get detailed company profile information
+  ///
+  /// [symbol] - Stock symbol (e.g., 'AAPL')
+  /// Returns detailed company profile information as CompanyProfile object
+  Future<CompanyProfile?> getCompanyProfileDetails(String symbol) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('🏢 Fetching company profile for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/profile?symbol=$cleanSymbol&apikey=${ApiService._apiKey}',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('🏢 Company profile not available for $cleanSymbol');
+        return null;
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('🏢 No company profile data for $cleanSymbol');
+        return null;
+      }
+
+      final profile = CompanyProfile.fromJson(data.first);
+      debugPrint(
+        '✅ Loaded company profile for $cleanSymbol: ${profile.companyName}',
+      );
+      return profile;
+    } catch (e) {
+      debugPrint('❌ Error fetching company profile for $symbol: $e');
       return null;
     }
   }

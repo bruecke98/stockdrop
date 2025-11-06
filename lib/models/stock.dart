@@ -268,3 +268,200 @@ class Stock {
   @override
   int get hashCode => symbol.hashCode;
 }
+
+/// Company Profile model for detailed company information
+class CompanyProfile {
+  final String symbol;
+  final double? price;
+  final double? marketCap;
+  final double? beta;
+  final double? lastDividend;
+  final String? range;
+  final double? change;
+  final double? changePercentage;
+  final int? volume;
+  final int? averageVolume;
+  final String? companyName;
+  final String? currency;
+  final String? cik;
+  final String? isin;
+  final String? cusip;
+  final String? exchangeFullName;
+  final String? exchange;
+  final String? industry;
+  final String? website;
+  final String? description;
+  final String? ceo;
+  final String? sector;
+  final String? country;
+  final String? fullTimeEmployees;
+  final String? phone;
+  final String? address;
+  final String? city;
+  final String? state;
+  final String? zip;
+  final String? image;
+  final String? ipoDate;
+  final bool? defaultImage;
+  final bool? isEtf;
+  final bool? isActivelyTrading;
+  final bool? isAdr;
+  final bool? isFund;
+
+  CompanyProfile({
+    required this.symbol,
+    this.price,
+    this.marketCap,
+    this.beta,
+    this.lastDividend,
+    this.range,
+    this.change,
+    this.changePercentage,
+    this.volume,
+    this.averageVolume,
+    this.companyName,
+    this.currency,
+    this.cik,
+    this.isin,
+    this.cusip,
+    this.exchangeFullName,
+    this.exchange,
+    this.industry,
+    this.website,
+    this.description,
+    this.ceo,
+    this.sector,
+    this.country,
+    this.fullTimeEmployees,
+    this.phone,
+    this.address,
+    this.city,
+    this.state,
+    this.zip,
+    this.image,
+    this.ipoDate,
+    this.defaultImage,
+    this.isEtf,
+    this.isActivelyTrading,
+    this.isAdr,
+    this.isFund,
+  });
+
+  /// Create CompanyProfile from JSON
+  factory CompanyProfile.fromJson(Map<String, dynamic> json) {
+    return CompanyProfile(
+      symbol: json['symbol']?.toString() ?? '',
+      price: _parseDouble(json['price']),
+      marketCap: _parseDouble(json['marketCap']),
+      beta: _parseDouble(json['beta']),
+      lastDividend: _parseDouble(json['lastDividend']),
+      range: json['range']?.toString(),
+      change: _parseDouble(json['change']),
+      changePercentage: _parseDouble(json['changePercentage']),
+      volume: _parseInt(json['volume']),
+      averageVolume: _parseInt(json['averageVolume']),
+      companyName: json['companyName']?.toString(),
+      currency: json['currency']?.toString(),
+      cik: json['cik']?.toString(),
+      isin: json['isin']?.toString(),
+      cusip: json['cusip']?.toString(),
+      exchangeFullName: json['exchangeFullName']?.toString(),
+      exchange: json['exchange']?.toString(),
+      industry: json['industry']?.toString(),
+      website: json['website']?.toString(),
+      description: json['description']?.toString(),
+      ceo: json['ceo']?.toString(),
+      sector: json['sector']?.toString(),
+      country: json['country']?.toString(),
+      fullTimeEmployees: json['fullTimeEmployees']?.toString(),
+      phone: json['phone']?.toString(),
+      address: json['address']?.toString(),
+      city: json['city']?.toString(),
+      state: json['state']?.toString(),
+      zip: json['zip']?.toString(),
+      image: json['image']?.toString(),
+      ipoDate: json['ipoDate']?.toString(),
+      defaultImage: json['defaultImage'] as bool?,
+      isEtf: json['isEtf'] as bool?,
+      isActivelyTrading: json['isActivelyTrading'] as bool?,
+      isAdr: json['isAdr'] as bool?,
+      isFund: json['isFund'] as bool?,
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Helper method to safely parse int from dynamic value
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  /// Get formatted market cap
+  String get formattedMarketCap {
+    if (marketCap == null) return 'N/A';
+    if (marketCap! >= 1000000000000) {
+      return '\$${(marketCap! / 1000000000000).toStringAsFixed(2)}T';
+    } else if (marketCap! >= 1000000000) {
+      return '\$${(marketCap! / 1000000000).toStringAsFixed(2)}B';
+    } else if (marketCap! >= 1000000) {
+      return '\$${(marketCap! / 1000000).toStringAsFixed(2)}M';
+    }
+    return '\$${marketCap!.toStringAsFixed(0)}';
+  }
+
+  /// Get formatted price
+  String get formattedPrice {
+    if (price == null) return 'N/A';
+    return '\$${price!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted beta
+  String get formattedBeta {
+    if (beta == null) return 'N/A';
+    return beta!.toStringAsFixed(2);
+  }
+
+  /// Get formatted last dividend
+  String get formattedLastDividend {
+    if (lastDividend == null) return 'N/A';
+    return '\$${lastDividend!.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted volume
+  String get formattedVolume {
+    if (volume == null) return 'N/A';
+    if (volume! >= 1000000) {
+      return '${(volume! / 1000000).toStringAsFixed(1)}M';
+    } else if (volume! >= 1000) {
+      return '${(volume! / 1000).toStringAsFixed(1)}K';
+    }
+    return volume!.toString();
+  }
+
+  /// Get formatted employees
+  String get formattedEmployees {
+    if (fullTimeEmployees == null) return 'N/A';
+    final count = int.tryParse(fullTimeEmployees!);
+    if (count == null) return fullTimeEmployees!;
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
+  }
+
+  @override
+  String toString() {
+    return 'CompanyProfile(symbol: $symbol, companyName: $companyName, sector: $sector, industry: $industry)';
+  }
+}

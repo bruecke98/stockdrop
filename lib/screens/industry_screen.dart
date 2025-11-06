@@ -267,9 +267,7 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
 
     try {
       final apiService = ApiService();
-      // For now, we'll load general stocks since the API doesn't have sector filtering
-      // In a real implementation, you would call a sector-specific endpoint
-      final stocks = await apiService.getLosers();
+      final stocks = await apiService.getStocksBySector(widget.industry.sector);
 
       setState(() {
         _stocks = stocks;

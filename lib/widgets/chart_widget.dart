@@ -25,11 +25,12 @@ class ChartDataPoint {
   }
 }
 
-/// A comprehensive chart widget for displaying 5-minute intraday stock price data
+/// A comprehensive chart widget for displaying stock price data with selectable time periods
 ///
 /// Features:
 /// - Material 3 design with proper theming
 /// - Real-time data from Financial Modeling Prep API
+/// - Multiple time periods: 1D, 5D, 1M, 3M, 6M, 1Y
 /// - Loading states with CircularProgressIndicator
 /// - Error handling with retry functionality
 /// - Empty data state handling
@@ -49,12 +50,16 @@ class ChartWidget extends StatefulWidget {
   /// Chart line color (defaults to theme primary color)
   final Color? lineColor;
 
+  /// Initial time period for the chart
+  final String initialPeriod;
+
   const ChartWidget({
     super.key,
     required this.symbol,
     this.height = 300,
     this.showVolume = false,
     this.lineColor,
+    this.initialPeriod = '1D',
   });
 
   @override
@@ -69,6 +74,17 @@ class _ChartWidgetState extends State<ChartWidget> {
   String? _errorMessage;
   double? _minPrice;
   double? _maxPrice;
+  late String _selectedPeriod;
+
+  /// Available time periods for the chart
+  static const List<String> _availablePeriods = [
+    '1D',
+    '5D',
+    '1M',
+    '3M',
+    '6M',
+    '1Y',
+  ];
 
   /// Get API key from environment variables
   String get _apiKey {
@@ -82,6 +98,7 @@ class _ChartWidgetState extends State<ChartWidget> {
   @override
   void initState() {
     super.initState();
+    _selectedPeriod = widget.initialPeriod;
     _loadChartData();
   }
 
@@ -92,9 +109,14 @@ class _ChartWidgetState extends State<ChartWidget> {
     if (oldWidget.symbol != widget.symbol) {
       _loadChartData();
     }
+    // Update period if it changed
+    if (oldWidget.initialPeriod != widget.initialPeriod) {
+      _selectedPeriod = widget.initialPeriod;
+      _loadChartData();
+    }
   }
 
-  /// Fetch 5-minute intraday chart data from FMP API
+  /// Fetch chart data from FMP API based on selected period
   Future<void> _loadChartData() async {
     setState(() {
       _isLoading = true;
@@ -102,17 +124,28 @@ class _ChartWidgetState extends State<ChartWidget> {
     });
 
     try {
-      debugPrint('📈 Fetching 5min chart data for ${widget.symbol}');
-
-      final url = Uri.parse(
-        '$_baseUrl/historical-chart/5min/${widget.symbol.toUpperCase()}'
-        '?apikey=$_apiKey',
+      debugPrint(
+        '📈 Fetching ${_selectedPeriod} chart data for ${widget.symbol}',
       );
 
+      final url = _getChartUrl();
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
-        final List<dynamic> jsonData = json.decode(response.body);
+        final dynamic responseData = json.decode(response.body);
+
+        // Handle different response formats based on API endpoint
+        List<dynamic> jsonData;
+        if (responseData is List) {
+          // Direct list response (historical-chart endpoints)
+          jsonData = responseData;
+        } else if (responseData is Map &&
+            responseData.containsKey('historical')) {
+          // Map with historical key (historical-price-full endpoint)
+          jsonData = responseData['historical'] as List<dynamic>;
+        } else {
+          throw Exception('Unexpected API response format');
+        }
 
         if (jsonData.isEmpty) {
           setState(() {
@@ -130,9 +163,10 @@ class _ChartWidgetState extends State<ChartWidget> {
             .reversed
             .toList();
 
-        // Take only the last 100 data points for better performance
-        final limitedData = chartData.length > 100
-            ? chartData.sublist(chartData.length - 100)
+        // Limit data points based on period for better performance
+        final maxPoints = _getMaxDataPoints();
+        final limitedData = chartData.length > maxPoints
+            ? chartData.sublist(chartData.length - maxPoints)
             : chartData;
 
         // Calculate price range for better scaling
@@ -156,7 +190,7 @@ class _ChartWidgetState extends State<ChartWidget> {
         });
 
         debugPrint(
-          '✅ Loaded ${limitedData.length} chart points for ${widget.symbol}',
+          '✅ Loaded ${limitedData.length} data points for ${widget.symbol}',
         );
       } else if (response.statusCode == 404) {
         setState(() {
@@ -172,6 +206,72 @@ class _ChartWidgetState extends State<ChartWidget> {
         _isLoading = false;
         _errorMessage = 'Failed to load chart data: $e';
       });
+    }
+  }
+
+  /// Get the appropriate API URL based on selected period
+  Uri _getChartUrl() {
+    final symbol = widget.symbol.toUpperCase();
+
+    switch (_selectedPeriod) {
+      case '1D':
+        return Uri.parse(
+          '$_baseUrl/historical-chart/5min/$symbol?apikey=$_apiKey',
+        );
+      case '5D':
+        return Uri.parse(
+          '$_baseUrl/historical-chart/1hour/$symbol?apikey=$_apiKey',
+        );
+      case '1M':
+        return Uri.parse(
+          '$_baseUrl/historical-price-full/$symbol?apikey=$_apiKey',
+        );
+      case '3M':
+        return Uri.parse(
+          '$_baseUrl/historical-price-full/$symbol?apikey=$_apiKey',
+        );
+      case '6M':
+        return Uri.parse(
+          '$_baseUrl/historical-price-full/$symbol?apikey=$_apiKey',
+        );
+      case '1Y':
+        return Uri.parse(
+          '$_baseUrl/historical-price-full/$symbol?apikey=$_apiKey',
+        );
+      default:
+        return Uri.parse(
+          '$_baseUrl/historical-chart/5min/$symbol?apikey=$_apiKey',
+        );
+    }
+  }
+
+  /// Change the selected time period and reload data
+  void _changePeriod(String period) {
+    if (_selectedPeriod != period) {
+      setState(() {
+        _selectedPeriod = period;
+      });
+      _loadChartData();
+    }
+  }
+
+  /// Get maximum data points to display based on period
+  int _getMaxDataPoints() {
+    switch (_selectedPeriod) {
+      case '1D':
+        return 100; // 5-minute intervals for 1 day
+      case '5D':
+        return 120; // Hourly intervals for 5 days
+      case '1M':
+        return 30; // Daily for 1 month
+      case '3M':
+        return 90; // Daily for 3 months
+      case '6M':
+        return 180; // Daily for 6 months
+      case '1Y':
+        return 365; // Daily for 1 year
+      default:
+        return 100;
     }
   }
 
@@ -335,36 +435,79 @@ class _ChartWidgetState extends State<ChartWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Chart header
-            Row(
+            // Chart header with period selector
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${widget.symbol.toUpperCase()} - 5min Chart',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
+                Row(
+                  children: [
+                    Text(
+                      '${widget.symbol.toUpperCase()} - ${_selectedPeriod} Chart',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (_isLoading)
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colorScheme.primary,
+                        ),
+                      )
+                    else if (_errorMessage != null)
+                      IconButton(
+                        onPressed: _loadChartData,
+                        icon: Icon(Icons.refresh, color: colorScheme.primary),
+                        tooltip: 'Retry',
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Period selector buttons
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _availablePeriods.map((period) {
+                      final isSelected = period == _selectedPeriod;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: TextButton(
+                          onPressed: () => _changePeriod(period),
+                          style: TextButton.styleFrom(
+                            backgroundColor: isSelected
+                                ? colorScheme.primaryContainer
+                                : Colors.transparent,
+                            foregroundColor: isSelected
+                                ? colorScheme.onPrimaryContainer
+                                : colorScheme.onSurfaceVariant,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            period,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
-                const Spacer(),
-                if (_isLoading)
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.primary,
-                    ),
-                  )
-                else if (_errorMessage != null)
-                  IconButton(
-                    onPressed: _loadChartData,
-                    icon: Icon(Icons.refresh, color: colorScheme.primary),
-                    tooltip: 'Retry',
-                    constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
-                    ),
-                  ),
               ],
             ),
 

@@ -116,16 +116,43 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     child: Card(
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: theme.colorScheme.error.withOpacity(
-                            0.1,
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/detail',
+                            arguments: {'symbol': stock.symbol},
+                          );
+                        },
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Text(
-                            stock.symbol.substring(0, 2).toUpperCase(),
-                            style: TextStyle(
-                              color: theme.colorScheme.error,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(7),
+                            child: Image.network(
+                              'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: theme.colorScheme.error.withOpacity(
+                                    0.1,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      stock.symbol
+                                          .substring(0, 2)
+                                          .toUpperCase(),
+                                      style: TextStyle(
+                                        color: theme.colorScheme.error,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ),
