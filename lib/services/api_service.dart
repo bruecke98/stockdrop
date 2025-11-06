@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../models/stock.dart';
@@ -595,6 +596,228 @@ class ApiService {
       return metrics;
     } catch (e) {
       debugPrint('❌ Error fetching key metrics for $symbol: $e');
+      return [];
+    }
+  }
+
+  /// Get financial ratios for a stock
+  ///
+  /// [symbol] - Stock symbol (e.g., 'AAPL')
+  /// [limit] - Number of periods to fetch (default: 5)
+  /// [period] - Period type ('annual' or 'quarter', default: 'annual')
+  /// Returns comprehensive financial ratios
+  Future<List<FinancialRatios>> getFinancialRatios(
+    String symbol, {
+    int limit = 5,
+    String period = 'annual',
+  }) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('📊 Fetching financial ratios for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/ratios?symbol=$cleanSymbol&limit=$limit&period=$period&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Financial ratios not available for $cleanSymbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No financial ratios data for $cleanSymbol');
+        return [];
+      }
+
+      final ratios = data
+          .map((item) => FinancialRatios.fromJson(item))
+          .toList();
+      debugPrint(
+        '📊 Loaded ${ratios.length} financial ratios periods for $cleanSymbol',
+      );
+      return ratios;
+    } catch (e) {
+      debugPrint('❌ Error fetching financial ratios for $symbol: $e');
+      return [];
+    }
+  }
+
+  /// Get financial scores (Altman Z-Score and Piotroski Score) for a stock
+  ///
+  /// Returns financial health scores for bankruptcy prediction and company analysis
+  /// Includes Altman Z-Score for bankruptcy risk and Piotroski Score for financial health
+  Future<FinancialScores?> getFinancialScores(String symbol) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('📊 Fetching financial scores for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/financial-scores?symbol=$cleanSymbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Financial scores not available for $cleanSymbol');
+        return null;
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No financial scores data for $cleanSymbol');
+        return null;
+      }
+
+      final scores = FinancialScores.fromJson(data.first);
+      debugPrint('📊 Loaded financial scores for $cleanSymbol');
+      return scores;
+    } catch (e) {
+      debugPrint('❌ Error fetching financial scores for $symbol: $e');
+      return null;
+    }
+  }
+
+  /// Get sector performance snapshot for a specific date
+  ///
+  /// Returns sector performance data including average change percentages
+  /// for different sectors and exchanges
+  Future<List<SectorPerformance>> getSectorPerformance({String? date}) async {
+    try {
+      debugPrint(
+        '📊 Fetching sector performance snapshot${date != null ? ' for $date' : ''}',
+      );
+
+      final queryParams = date != null
+          ? '?date=$date&apikey=$_apiKey'
+          : '?apikey=$_apiKey';
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/sector-performance-snapshot$queryParams',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Sector performance data not available');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No sector performance data available');
+        return [];
+      }
+
+      final sectors = data
+          .map((item) => SectorPerformance.fromJson(item))
+          .toList();
+      debugPrint('📊 Loaded ${sectors.length} sector performance records');
+      return sectors;
+    } catch (e) {
+      debugPrint('❌ Error fetching sector performance: $e');
+      return [];
+    }
+  }
+
+  /// Get insider trading data for a specific stock symbol
+  ///
+  /// Returns list of recent insider transactions (Form 4 filings)
+  /// Shows executive and director buying/selling activity
+  Future<List<InsiderTrading>> getInsiderTrading(
+    String symbol, {
+    int limit = 50,
+  }) async {
+    try {
+      debugPrint('📈 Fetching insider trading data for $symbol...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/insider-trading/search'
+        '?page=0&limit=$limit&symbol=$symbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Insider trading data not available for $symbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No insider trading data available for $symbol');
+        return [];
+      }
+
+      final insiderTrades = data
+          .map((item) => InsiderTrading.fromJson(item))
+          .toList();
+
+      // Sort by transaction date (most recent first)
+      insiderTrades.sort(
+        (a, b) => b.transactionDate.compareTo(a.transactionDate),
+      );
+
+      debugPrint(
+        '📈 Loaded ${insiderTrades.length} insider trading records for $symbol',
+      );
+      return insiderTrades;
+    } catch (e) {
+      debugPrint('❌ Error fetching insider trading data: $e');
+      return [];
+    }
+  }
+
+  /// Get revenue product segmentation data
+  /// Returns revenue breakdown by product categories for the specified symbol
+  Future<List<RevenueSegmentation>> getRevenueProductSegmentation(
+    String symbol,
+  ) async {
+    try {
+      debugPrint('📊 Fetching revenue product segmentation for $symbol...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/revenue-product-segmentation'
+        '?symbol=$symbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Revenue segmentation data not available for $symbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No revenue segmentation data available for $symbol');
+        return [];
+      }
+
+      final segmentation = data
+          .map((item) => RevenueSegmentation.fromJson(item))
+          .toList();
+
+      debugPrint(
+        '📊 Loaded ${segmentation.length} revenue segmentation records for $symbol',
+      );
+      return segmentation;
+    } catch (e) {
+      debugPrint('❌ Error fetching revenue segmentation data: $e');
       return [];
     }
   }
@@ -1760,4 +1983,692 @@ class ApiException implements Exception {
 
   /// Check if error is a server error
   bool get isServerError => statusCode >= 500;
+}
+
+/// Financial Ratios model
+class FinancialRatios {
+  final String symbol;
+  final String? date;
+  final String? fiscalYear;
+  final String? period;
+  final String? reportedCurrency;
+
+  // Profitability Ratios
+  final double? grossProfitMargin;
+  final double? ebitMargin;
+  final double? ebitdaMargin;
+  final double? operatingProfitMargin;
+  final double? pretaxProfitMargin;
+  final double? netProfitMargin;
+
+  // Turnover Ratios
+  final double? receivablesTurnover;
+  final double? payablesTurnover;
+  final double? inventoryTurnover;
+  final double? fixedAssetTurnover;
+  final double? assetTurnover;
+
+  // Liquidity Ratios
+  final double? currentRatio;
+  final double? quickRatio;
+  final double? solvencyRatio;
+  final double? cashRatio;
+
+  // Valuation Ratios
+  final double? priceToEarningsRatio;
+  final double? priceToEarningsGrowthRatio;
+  final double? forwardPriceToEarningsGrowthRatio;
+  final double? priceToBookRatio;
+  final double? priceToSalesRatio;
+  final double? priceToFreeCashFlowRatio;
+  final double? priceToOperatingCashFlowRatio;
+
+  // Leverage Ratios
+  final double? debtToAssetsRatio;
+  final double? debtToEquityRatio;
+  final double? debtToCapitalRatio;
+  final double? longTermDebtToCapitalRatio;
+  final double? financialLeverageRatio;
+
+  // Efficiency Ratios
+  final double? workingCapitalTurnoverRatio;
+  final double? operatingCashFlowRatio;
+  final double? operatingCashFlowSalesRatio;
+  final double? freeCashFlowOperatingCashFlowRatio;
+
+  // Coverage Ratios
+  final double? debtServiceCoverageRatio;
+  final double? interestCoverageRatio;
+  final double? shortTermOperatingCashFlowCoverageRatio;
+  final double? operatingCashFlowCoverageRatio;
+  final double? capitalExpenditureCoverageRatio;
+  final double? dividendPaidAndCapexCoverageRatio;
+
+  // Dividend Ratios
+  final double? dividendPayoutRatio;
+  final double? dividendYield;
+  final double? dividendYieldPercentage;
+
+  // Per Share Ratios
+  final double? revenuePerShare;
+  final double? netIncomePerShare;
+  final double? interestDebtPerShare;
+  final double? cashPerShare;
+  final double? bookValuePerShare;
+  final double? tangibleBookValuePerShare;
+  final double? shareholdersEquityPerShare;
+  final double? operatingCashFlowPerShare;
+  final double? capexPerShare;
+  final double? freeCashFlowPerShare;
+
+  // Other Ratios
+  final double? netIncomePerEBT;
+  final double? ebtPerEbit;
+  final double? priceToFairValue;
+  final double? debtToMarketCap;
+  final double? effectiveTaxRate;
+  final double? enterpriseValueMultiple;
+  final double? dividendPerShare;
+
+  FinancialRatios({
+    required this.symbol,
+    this.date,
+    this.fiscalYear,
+    this.period,
+    this.reportedCurrency,
+    this.grossProfitMargin,
+    this.ebitMargin,
+    this.ebitdaMargin,
+    this.operatingProfitMargin,
+    this.pretaxProfitMargin,
+    this.netProfitMargin,
+    this.receivablesTurnover,
+    this.payablesTurnover,
+    this.inventoryTurnover,
+    this.fixedAssetTurnover,
+    this.assetTurnover,
+    this.currentRatio,
+    this.quickRatio,
+    this.solvencyRatio,
+    this.cashRatio,
+    this.priceToEarningsRatio,
+    this.priceToEarningsGrowthRatio,
+    this.forwardPriceToEarningsGrowthRatio,
+    this.priceToBookRatio,
+    this.priceToSalesRatio,
+    this.priceToFreeCashFlowRatio,
+    this.priceToOperatingCashFlowRatio,
+    this.debtToAssetsRatio,
+    this.debtToEquityRatio,
+    this.debtToCapitalRatio,
+    this.longTermDebtToCapitalRatio,
+    this.financialLeverageRatio,
+    this.workingCapitalTurnoverRatio,
+    this.operatingCashFlowRatio,
+    this.operatingCashFlowSalesRatio,
+    this.freeCashFlowOperatingCashFlowRatio,
+    this.debtServiceCoverageRatio,
+    this.interestCoverageRatio,
+    this.shortTermOperatingCashFlowCoverageRatio,
+    this.operatingCashFlowCoverageRatio,
+    this.capitalExpenditureCoverageRatio,
+    this.dividendPaidAndCapexCoverageRatio,
+    this.dividendPayoutRatio,
+    this.dividendYield,
+    this.dividendYieldPercentage,
+    this.revenuePerShare,
+    this.netIncomePerShare,
+    this.interestDebtPerShare,
+    this.cashPerShare,
+    this.bookValuePerShare,
+    this.tangibleBookValuePerShare,
+    this.shareholdersEquityPerShare,
+    this.operatingCashFlowPerShare,
+    this.capexPerShare,
+    this.freeCashFlowPerShare,
+    this.netIncomePerEBT,
+    this.ebtPerEbit,
+    this.priceToFairValue,
+    this.debtToMarketCap,
+    this.effectiveTaxRate,
+    this.enterpriseValueMultiple,
+    this.dividendPerShare,
+  });
+
+  factory FinancialRatios.fromJson(Map<String, dynamic> json) {
+    return FinancialRatios(
+      symbol: json['symbol']?.toString() ?? '',
+      date: json['date']?.toString(),
+      fiscalYear: json['fiscalYear']?.toString(),
+      period: json['period']?.toString(),
+      reportedCurrency: json['reportedCurrency']?.toString(),
+      grossProfitMargin: _parseDouble(json['grossProfitMargin']),
+      ebitMargin: _parseDouble(json['ebitMargin']),
+      ebitdaMargin: _parseDouble(json['ebitdaMargin']),
+      operatingProfitMargin: _parseDouble(json['operatingProfitMargin']),
+      pretaxProfitMargin: _parseDouble(json['pretaxProfitMargin']),
+      netProfitMargin: _parseDouble(json['netProfitMargin']),
+      receivablesTurnover: _parseDouble(json['receivablesTurnover']),
+      payablesTurnover: _parseDouble(json['payablesTurnover']),
+      inventoryTurnover: _parseDouble(json['inventoryTurnover']),
+      fixedAssetTurnover: _parseDouble(json['fixedAssetTurnover']),
+      assetTurnover: _parseDouble(json['assetTurnover']),
+      currentRatio: _parseDouble(json['currentRatio']),
+      quickRatio: _parseDouble(json['quickRatio']),
+      solvencyRatio: _parseDouble(json['solvencyRatio']),
+      cashRatio: _parseDouble(json['cashRatio']),
+      priceToEarningsRatio: _parseDouble(json['priceToEarningsRatio']),
+      priceToEarningsGrowthRatio: _parseDouble(
+        json['priceToEarningsGrowthRatio'],
+      ),
+      forwardPriceToEarningsGrowthRatio: _parseDouble(
+        json['forwardPriceToEarningsGrowthRatio'],
+      ),
+      priceToBookRatio: _parseDouble(json['priceToBookRatio']),
+      priceToSalesRatio: _parseDouble(json['priceToSalesRatio']),
+      priceToFreeCashFlowRatio: _parseDouble(json['priceToFreeCashFlowRatio']),
+      priceToOperatingCashFlowRatio: _parseDouble(
+        json['priceToOperatingCashFlowRatio'],
+      ),
+      debtToAssetsRatio: _parseDouble(json['debtToAssetsRatio']),
+      debtToEquityRatio: _parseDouble(json['debtToEquityRatio']),
+      debtToCapitalRatio: _parseDouble(json['debtToCapitalRatio']),
+      longTermDebtToCapitalRatio: _parseDouble(
+        json['longTermDebtToCapitalRatio'],
+      ),
+      financialLeverageRatio: _parseDouble(json['financialLeverageRatio']),
+      workingCapitalTurnoverRatio: _parseDouble(
+        json['workingCapitalTurnoverRatio'],
+      ),
+      operatingCashFlowRatio: _parseDouble(json['operatingCashFlowRatio']),
+      operatingCashFlowSalesRatio: _parseDouble(
+        json['operatingCashFlowSalesRatio'],
+      ),
+      freeCashFlowOperatingCashFlowRatio: _parseDouble(
+        json['freeCashFlowOperatingCashFlowRatio'],
+      ),
+      debtServiceCoverageRatio: _parseDouble(json['debtServiceCoverageRatio']),
+      interestCoverageRatio: _parseDouble(json['interestCoverageRatio']),
+      shortTermOperatingCashFlowCoverageRatio: _parseDouble(
+        json['shortTermOperatingCashFlowCoverageRatio'],
+      ),
+      operatingCashFlowCoverageRatio: _parseDouble(
+        json['operatingCashFlowCoverageRatio'],
+      ),
+      capitalExpenditureCoverageRatio: _parseDouble(
+        json['capitalExpenditureCoverageRatio'],
+      ),
+      dividendPaidAndCapexCoverageRatio: _parseDouble(
+        json['dividendPaidAndCapexCoverageRatio'],
+      ),
+      dividendPayoutRatio: _parseDouble(json['dividendPayoutRatio']),
+      dividendYield: _parseDouble(json['dividendYield']),
+      dividendYieldPercentage: _parseDouble(json['dividendYieldPercentage']),
+      revenuePerShare: _parseDouble(json['revenuePerShare']),
+      netIncomePerShare: _parseDouble(json['netIncomePerShare']),
+      interestDebtPerShare: _parseDouble(json['interestDebtPerShare']),
+      cashPerShare: _parseDouble(json['cashPerShare']),
+      bookValuePerShare: _parseDouble(json['bookValuePerShare']),
+      tangibleBookValuePerShare: _parseDouble(
+        json['tangibleBookValuePerShare'],
+      ),
+      shareholdersEquityPerShare: _parseDouble(
+        json['shareholdersEquityPerShare'],
+      ),
+      operatingCashFlowPerShare: _parseDouble(
+        json['operatingCashFlowPerShare'],
+      ),
+      capexPerShare: _parseDouble(json['capexPerShare']),
+      freeCashFlowPerShare: _parseDouble(json['freeCashFlowPerShare']),
+      netIncomePerEBT: _parseDouble(json['netIncomePerEBT']),
+      ebtPerEbit: _parseDouble(json['ebtPerEbit']),
+      priceToFairValue: _parseDouble(json['priceToFairValue']),
+      debtToMarketCap: _parseDouble(json['debtToMarketCap']),
+      effectiveTaxRate: _parseDouble(json['effectiveTaxRate']),
+      enterpriseValueMultiple: _parseDouble(json['enterpriseValueMultiple']),
+      dividendPerShare: _parseDouble(json['dividendPerShare']),
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Format ratio as percentage
+  String formatPercentage(double? value) {
+    if (value == null) return 'N/A';
+    return '${(value * 100).toStringAsFixed(2)}%';
+  }
+
+  /// Format ratio as decimal
+  String formatRatio(double? value) {
+    if (value == null) return 'N/A';
+    return value.toStringAsFixed(2);
+  }
+
+  /// Format currency value
+  String formatCurrency(double? value) {
+    if (value == null) return 'N/A';
+    return '\$${value.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted fiscal year period
+  String get formattedPeriod {
+    if (fiscalYear == null) return 'N/A';
+    if (period == null) return 'FY $fiscalYear';
+    return '$period $fiscalYear';
+  }
+
+  @override
+  String toString() {
+    return 'FinancialRatios(symbol: $symbol, fiscalYear: $fiscalYear, period: $period)';
+  }
+}
+
+/// Financial Scores model for Altman Z-Score and Piotroski Score analysis
+/// Provides bankruptcy prediction and financial health scoring
+class FinancialScores {
+  final String symbol;
+  final String? reportedCurrency;
+  final double? altmanZScore;
+  final int? piotroskiScore;
+  final double? workingCapital;
+  final double? totalAssets;
+  final double? retainedEarnings;
+  final double? ebit;
+  final double? marketCap;
+  final double? totalLiabilities;
+  final double? revenue;
+
+  FinancialScores({
+    required this.symbol,
+    this.reportedCurrency,
+    this.altmanZScore,
+    this.piotroskiScore,
+    this.workingCapital,
+    this.totalAssets,
+    this.retainedEarnings,
+    this.ebit,
+    this.marketCap,
+    this.totalLiabilities,
+    this.revenue,
+  });
+
+  factory FinancialScores.fromJson(Map<String, dynamic> json) {
+    return FinancialScores(
+      symbol: json['symbol']?.toString() ?? '',
+      reportedCurrency: json['reportedCurrency']?.toString(),
+      altmanZScore: _parseDouble(json['altmanZScore']),
+      piotroskiScore: json['piotroskiScore'] is int
+          ? json['piotroskiScore']
+          : int.tryParse(json['piotroskiScore']?.toString() ?? ''),
+      workingCapital: _parseDouble(json['workingCapital']),
+      totalAssets: _parseDouble(json['totalAssets']),
+      retainedEarnings: _parseDouble(json['retainedEarnings']),
+      ebit: _parseDouble(json['ebit']),
+      marketCap: _parseDouble(json['marketCap']),
+      totalLiabilities: _parseDouble(json['totalLiabilities']),
+      revenue: _parseDouble(json['revenue']),
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Format currency value
+  String formatCurrency(double? value) {
+    if (value == null) return 'N/A';
+    return '\$${value.abs().toStringAsFixed(0)}';
+  }
+
+  /// Get Altman Z-Score interpretation
+  String getAltmanZScoreInterpretation() {
+    if (altmanZScore == null) return 'N/A';
+
+    if (altmanZScore! >= 3.0) {
+      return 'Safe Zone (Low Bankruptcy Risk)';
+    } else if (altmanZScore! >= 1.8) {
+      return 'Grey Zone (Moderate Risk)';
+    } else {
+      return 'Distress Zone (High Bankruptcy Risk)';
+    }
+  }
+
+  /// Get Altman Z-Score color
+  String getAltmanZScoreColor() {
+    if (altmanZScore == null) return 'grey';
+
+    if (altmanZScore! >= 3.0) {
+      return 'green';
+    } else if (altmanZScore! >= 1.8) {
+      return 'yellow';
+    } else {
+      return 'red';
+    }
+  }
+
+  /// Get Piotroski Score interpretation
+  String getPiotroskiScoreInterpretation() {
+    if (piotroskiScore == null) return 'N/A';
+
+    if (piotroskiScore! >= 7) {
+      return 'Strong Financial Health';
+    } else if (piotroskiScore! >= 4) {
+      return 'Moderate Financial Health';
+    } else {
+      return 'Weak Financial Health';
+    }
+  }
+
+  /// Get Piotroski Score color
+  String getPiotroskiScoreColor() {
+    if (piotroskiScore == null) return 'grey';
+
+    if (piotroskiScore! >= 7) {
+      return 'green';
+    } else if (piotroskiScore! >= 4) {
+      return 'yellow';
+    } else {
+      return 'red';
+    }
+  }
+
+  /// Calculate Altman Z-Score components for display
+  Map<String, double?> getAltmanZScoreComponents() {
+    if (workingCapital == null ||
+        totalAssets == null ||
+        retainedEarnings == null ||
+        ebit == null ||
+        marketCap == null ||
+        totalLiabilities == null ||
+        revenue == null) {
+      return {};
+    }
+
+    final wcToTa = workingCapital! / totalAssets!;
+    final reToTa = retainedEarnings! / totalAssets!;
+    final ebitToTa = ebit! / totalAssets!;
+    final mvToTl = marketCap! / totalLiabilities!;
+    final salesToTa = revenue! / totalAssets!;
+
+    return {
+      'Working Capital / Total Assets': wcToTa,
+      'Retained Earnings / Total Assets': reToTa,
+      'EBIT / Total Assets': ebitToTa,
+      'Market Value of Equity / Total Liabilities': mvToTl,
+      'Sales / Total Assets': salesToTa,
+    };
+  }
+
+  /// Calculate Piotroski Score components for display
+  Map<String, bool?> getPiotroskiScoreComponents() {
+    // This would require more detailed financial data to calculate properly
+    // For now, we'll return empty as we don't have all the required metrics
+    return {};
+  }
+
+  @override
+  String toString() {
+    return 'FinancialScores(symbol: $symbol, altmanZScore: $altmanZScore, piotroskiScore: $piotroskiScore)';
+  }
+}
+
+/// Sector Performance model for sector performance snapshots
+/// Provides sector-level performance data and comparisons
+class SectorPerformance {
+  final String date;
+  final String sector;
+  final String exchange;
+  final double averageChange;
+
+  SectorPerformance({
+    required this.date,
+    required this.sector,
+    required this.exchange,
+    required this.averageChange,
+  });
+
+  factory SectorPerformance.fromJson(Map<String, dynamic> json) {
+    return SectorPerformance(
+      date: json['date']?.toString() ?? '',
+      sector: json['sector']?.toString() ?? '',
+      exchange: json['exchange']?.toString() ?? '',
+      averageChange: _parseDouble(json['averageChange']) ?? 0.0,
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Format percentage change
+  String formatPercentage() {
+    return '${averageChange >= 0 ? '+' : ''}${averageChange.toStringAsFixed(2)}%';
+  }
+
+  /// Get performance color
+  Color getPerformanceColor() {
+    if (averageChange > 0) return Colors.green;
+    if (averageChange < 0) return Colors.red;
+    return Colors.grey;
+  }
+
+  @override
+  String toString() {
+    return 'SectorPerformance(sector: $sector, averageChange: $averageChange, date: $date)';
+  }
+}
+
+/// Insider Trading model for SEC Form 4 filings and executive transactions
+/// Provides transparency into company insider buying/selling activity
+class InsiderTrading {
+  final String symbol;
+  final String filingDate;
+  final String transactionDate;
+  final String reportingCik;
+  final String companyCik;
+  final String transactionType;
+  final int securitiesOwned;
+  final String reportingName;
+  final String typeOfOwner;
+  final String
+  acquisitionOrDisposition; // "A" for acquisition (buy), "D" for disposition (sell)
+  final String directOrIndirect; // "D" for direct, "I" for indirect
+  final String formType;
+  final int securitiesTransacted;
+  final double price;
+  final String securityName;
+  final String url;
+
+  InsiderTrading({
+    required this.symbol,
+    required this.filingDate,
+    required this.transactionDate,
+    required this.reportingCik,
+    required this.companyCik,
+    required this.transactionType,
+    required this.securitiesOwned,
+    required this.reportingName,
+    required this.typeOfOwner,
+    required this.acquisitionOrDisposition,
+    required this.directOrIndirect,
+    required this.formType,
+    required this.securitiesTransacted,
+    required this.price,
+    required this.securityName,
+    required this.url,
+  });
+
+  factory InsiderTrading.fromJson(Map<String, dynamic> json) {
+    return InsiderTrading(
+      symbol: json['symbol']?.toString() ?? '',
+      filingDate: json['filingDate']?.toString() ?? '',
+      transactionDate: json['transactionDate']?.toString() ?? '',
+      reportingCik: json['reportingCik']?.toString() ?? '',
+      companyCik: json['companyCik']?.toString() ?? '',
+      transactionType: json['transactionType']?.toString() ?? '',
+      securitiesOwned: json['securitiesOwned'] as int? ?? 0,
+      reportingName: json['reportingName']?.toString() ?? '',
+      typeOfOwner: json['typeOfOwner']?.toString() ?? '',
+      acquisitionOrDisposition:
+          json['acquisitionOrDisposition']?.toString() ?? '',
+      directOrIndirect: json['directOrIndirect']?.toString() ?? '',
+      formType: json['formType']?.toString() ?? '',
+      securitiesTransacted: json['securitiesTransacted'] as int? ?? 0,
+      price: _parseDouble(json['price']) ?? 0.0,
+      securityName: json['securityName']?.toString() ?? '',
+      url: json['url']?.toString() ?? '',
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Check if this is a buy transaction
+  bool get isBuy => acquisitionOrDisposition == 'A';
+
+  /// Check if this is a sell transaction
+  bool get isSell => acquisitionOrDisposition == 'D';
+
+  /// Get transaction color for charts
+  Color getTransactionColor() {
+    if (isBuy) return Colors.green;
+    if (isSell) return Colors.red;
+    return Colors.grey;
+  }
+
+  /// Format securities transacted with sign
+  String formatSecuritiesTransacted() {
+    final sign = isBuy ? '+' : '-';
+    return '$sign${securitiesTransacted.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  }
+
+  /// Format price
+  String formatPrice() {
+    if (price == 0) return 'N/A';
+    return '\$${price.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted transaction date
+  String get formattedTransactionDate {
+    try {
+      final date = DateTime.parse(transactionDate);
+      return '${date.month}/${date.day}/${date.year}';
+    } catch (e) {
+      return transactionDate;
+    }
+  }
+
+  /// Get formatted filing date
+  String get formattedFilingDate {
+    try {
+      final date = DateTime.parse(filingDate);
+      return '${date.month}/${date.day}/${date.year}';
+    } catch (e) {
+      return filingDate;
+    }
+  }
+
+  @override
+  String toString() {
+    return 'InsiderTrading(symbol: $symbol, reportingName: $reportingName, transactionType: $acquisitionOrDisposition, securitiesTransacted: $securitiesTransacted)';
+  }
+}
+
+/// Revenue product segmentation data model
+/// Represents revenue breakdown by product categories for a company
+class RevenueSegmentation {
+  final String symbol;
+  final int fiscalYear;
+  final String period;
+  final String? reportedCurrency;
+  final String date;
+  final Map<String, double> data;
+
+  RevenueSegmentation({
+    required this.symbol,
+    required this.fiscalYear,
+    required this.period,
+    this.reportedCurrency,
+    required this.date,
+    required this.data,
+  });
+
+  factory RevenueSegmentation.fromJson(Map<String, dynamic> json) {
+    final dataMap = <String, double>{};
+    if (json['data'] is Map<String, dynamic>) {
+      (json['data'] as Map<String, dynamic>).forEach((key, value) {
+        if (value is num) {
+          dataMap[key] = value.toDouble();
+        }
+      });
+    }
+
+    return RevenueSegmentation(
+      symbol: json['symbol']?.toString() ?? '',
+      fiscalYear: json['fiscalYear'] as int? ?? 0,
+      period: json['period']?.toString() ?? '',
+      reportedCurrency: json['reportedCurrency']?.toString(),
+      date: json['date']?.toString() ?? '',
+      data: dataMap,
+    );
+  }
+
+  /// Get total revenue across all product categories
+  double get totalRevenue {
+    return data.values.fold(0.0, (sum, value) => sum + value);
+  }
+
+  /// Get product categories sorted by revenue (highest first)
+  List<MapEntry<String, double>> get sortedProducts {
+    final entries = data.entries.toList();
+    entries.sort((a, b) => b.value.compareTo(a.value));
+    return entries;
+  }
+
+  /// Format revenue value as currency string
+  static String formatRevenue(double revenue) {
+    if (revenue >= 1000000000) {
+      return '\$${(revenue / 1000000000).toStringAsFixed(1)}B';
+    } else if (revenue >= 1000000) {
+      return '\$${(revenue / 1000000).toStringAsFixed(1)}M';
+    } else if (revenue >= 1000) {
+      return '\$${(revenue / 1000).toStringAsFixed(1)}K';
+    }
+    return '\$${revenue.toStringAsFixed(0)}';
+  }
+
+  /// Get percentage of total revenue for a product
+  double getProductPercentage(String productName) {
+    final productRevenue = data[productName];
+    if (productRevenue == null || totalRevenue == 0) return 0.0;
+    return (productRevenue / totalRevenue) * 100;
+  }
+
+  @override
+  String toString() {
+    return 'RevenueSegmentation(symbol: $symbol, fiscalYear: $fiscalYear, totalRevenue: $totalRevenue, products: ${data.length})';
+  }
 }

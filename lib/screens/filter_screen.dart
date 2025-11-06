@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
-/// Filter screen for customizing stock search and display preferences
+/// Comprehensive filter screen for stock screening using FMP Company Screener API
 class FilterScreen extends StatefulWidget {
   const FilterScreen({super.key});
 
@@ -12,21 +12,105 @@ class FilterScreen extends StatefulWidget {
 }
 
 class _FilterScreenState extends State<FilterScreen> {
-  // Filter options - only percentage loss/gain
-  double _lossThreshold = 5.0;
-  double _gainThreshold = 5.0;
-  String _filterType = 'loss'; // 'loss', 'gain', or 'both'
-  String _timeframe = 'daily';
+  // Market Data Filters
+  double? _marketCapMin;
+  double? _marketCapMax;
+  double? _priceMin;
+  double? _priceMax;
+  double? _betaMin;
+  double? _betaMax;
+  double? _volumeMin;
+  double? _volumeMax;
+  double? _changeMin; // Percentage change minimum (can be negative for losses)
+  double? _changeMax; // Percentage change maximum
 
-  // Filtered results state
+  // Fundamentals Filters
+  double? _dividendMin;
+  double? _dividendMax;
+
+  // Classification Filters
+  String? _sector;
+  String? _industry;
+  String? _exchange;
+  String? _country;
+
+  // Trading Status Filters
+  bool? _isEtf;
+  bool? _isFund;
+  bool? _isActivelyTrading;
+
+  // Results Filters
+  int _limit = 100;
+  bool _includeAllShareClasses = false;
+
+  // UI State
   List<FilteredStock> _filteredStocks = [];
   bool _isLoading = false;
   String? _error;
   bool _filtersApplied = false;
 
-  final List<String> _filterTypeOptions = ['loss', 'gain', 'both'];
+  // Dropdown options
+  final List<String> _sectorOptions = [
+    'Technology',
+    'Healthcare',
+    'Financial Services',
+    'Consumer Cyclical',
+    'Communication Services',
+    'Industrials',
+    'Consumer Defensive',
+    'Energy',
+    'Utilities',
+    'Real Estate',
+    'Basic Materials',
+  ];
 
-  final List<String> _timeframeOptions = ['daily', 'weekly', 'monthly'];
+  final List<String> _industryOptions = [
+    'Consumer Electronics',
+    'Software',
+    'Semiconductors',
+    'Banks',
+    'Medical Devices',
+    'Drug Manufacturers',
+    'Insurance',
+    'Retail',
+    'Automobiles',
+    'Telecommunications',
+    'Aerospace',
+    'Chemicals',
+    'Utilities',
+    'REITs',
+    'Metals & Mining',
+  ];
+
+  final List<String> _exchangeOptions = [
+    'NASDAQ',
+    'NYSE',
+    'AMEX',
+    'OTC',
+    'TSX',
+    'LSE',
+    'HKSE',
+    'SSE',
+    'SZSE',
+  ];
+
+  final List<String> _countryOptions = [
+    'US',
+    'CA',
+    'GB',
+    'DE',
+    'FR',
+    'JP',
+    'CN',
+    'AU',
+    'IN',
+    'BR',
+    'MX',
+    'KR',
+    'SG',
+    'NL',
+    'CH',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +118,7 @@ class _FilterScreenState extends State<FilterScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Filters'),
+        title: const Text('Stock Screener'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -54,53 +138,56 @@ class _FilterScreenState extends State<FilterScreen> {
                 children: [
                   // Header
                   Text(
-                    'Percentage Filter',
+                    'Stock Screener',
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Filter stocks by percentage loss or gain',
+                    'Filter stocks using comprehensive criteria',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.7),
                     ),
                   ),
                   const SizedBox(height: 32),
 
-                  // Filter Type Selection
-                  _buildSectionHeader(theme, 'Filter Type', Icons.filter_alt),
+                  // Market Data Section
+                  _buildSectionHeader(theme, 'Market Data', Icons.show_chart),
                   const SizedBox(height: 16),
-                  _buildFilterTypeCard(theme),
+                  _buildMarketDataSection(theme),
                   const SizedBox(height: 24),
 
-                  // Percentage Thresholds
-                  if (_filterType == 'loss' || _filterType == 'both') ...[
-                    _buildSectionHeader(
-                      theme,
-                      'Loss Threshold',
-                      Icons.trending_down,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildLossThresholdCard(theme),
-                    const SizedBox(height: 24),
-                  ],
-
-                  if (_filterType == 'gain' || _filterType == 'both') ...[
-                    _buildSectionHeader(
-                      theme,
-                      'Gain Threshold',
-                      Icons.trending_up,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildGainThresholdCard(theme),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Timeframe Selection
-                  _buildSectionHeader(theme, 'Timeframe', Icons.schedule),
+                  // Fundamentals Section
+                  _buildSectionHeader(
+                    theme,
+                    'Fundamentals',
+                    Icons.account_balance_wallet,
+                  ),
                   const SizedBox(height: 16),
-                  _buildTimeframeCard(theme),
+                  _buildFundamentalsSection(theme),
+                  const SizedBox(height: 24),
+
+                  // Classification Section
+                  _buildSectionHeader(theme, 'Classification', Icons.category),
+                  const SizedBox(height: 16),
+                  _buildClassificationSection(theme),
+                  const SizedBox(height: 24),
+
+                  // Trading Status Section
+                  _buildSectionHeader(
+                    theme,
+                    'Trading Status',
+                    Icons.trending_up,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTradingStatusSection(theme),
+                  const SizedBox(height: 24),
+
+                  // Results Section
+                  _buildSectionHeader(theme, 'Results', Icons.list),
+                  const SizedBox(height: 16),
+                  _buildResultsSection(theme),
                   const SizedBox(height: 24),
 
                   // Apply Filters Button
@@ -143,7 +230,7 @@ class _FilterScreenState extends State<FilterScreen> {
                         ),
                       ),
                       child: const Text(
-                        'Reset to Defaults',
+                        'Reset All Filters',
                         style: TextStyle(fontSize: 16),
                       ),
                     ),
@@ -183,71 +270,66 @@ class _FilterScreenState extends State<FilterScreen> {
     );
   }
 
-  Widget _buildFilterTypeCard(ThemeData theme) {
+  Widget _buildMarketDataSection(ThemeData theme) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'What type of stocks to filter?',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            _buildRangeInput(
+              theme,
+              'Market Cap',
+              'Minimum market cap (millions)',
+              _marketCapMin,
+              (value) => setState(() => _marketCapMin = value),
+              'Maximum market cap (millions)',
+              _marketCapMax,
+              (value) => setState(() => _marketCapMax = value),
             ),
             const SizedBox(height: 16),
-            ...ListTile.divideTiles(
-              context: context,
-              tiles: _filterTypeOptions.map((type) {
-                String title;
-                String subtitle;
-                IconData icon;
-
-                switch (type) {
-                  case 'loss':
-                    title = 'Losing Stocks';
-                    subtitle = 'Show stocks with percentage losses';
-                    icon = Icons.trending_down;
-                    break;
-                  case 'gain':
-                    title = 'Gaining Stocks';
-                    subtitle = 'Show stocks with percentage gains';
-                    icon = Icons.trending_up;
-                    break;
-                  case 'both':
-                    title = 'Both Losses and Gains';
-                    subtitle = 'Show stocks with significant changes';
-                    icon = Icons.swap_vert;
-                    break;
-                  default:
-                    title = type;
-                    subtitle = '';
-                    icon = Icons.help;
-                }
-
-                return RadioListTile<String>(
-                  title: Row(
-                    children: [
-                      Icon(
-                        icon,
-                        size: 18,
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(title),
-                    ],
-                  ),
-                  subtitle: Text(subtitle),
-                  value: type,
-                  groupValue: _filterType,
-                  onChanged: (value) {
-                    setState(() {
-                      _filterType = value!;
-                    });
-                  },
-                );
-              }),
+            _buildRangeInput(
+              theme,
+              'Price',
+              'Minimum price',
+              _priceMin,
+              (value) => setState(() => _priceMin = value),
+              'Maximum price',
+              _priceMax,
+              (value) => setState(() => _priceMax = value),
+            ),
+            const SizedBox(height: 16),
+            _buildRangeInput(
+              theme,
+              'Beta',
+              'Minimum beta',
+              _betaMin,
+              (value) => setState(() => _betaMin = value),
+              'Maximum beta',
+              _betaMax,
+              (value) => setState(() => _betaMax = value),
+            ),
+            const SizedBox(height: 16),
+            _buildRangeInput(
+              theme,
+              'Volume',
+              'Minimum volume',
+              _volumeMin,
+              (value) => setState(() => _volumeMin = value),
+              'Maximum volume',
+              _volumeMax,
+              (value) => setState(() => _volumeMax = value),
+            ),
+            const SizedBox(height: 16),
+            _buildRangeInput(
+              theme,
+              'Percentage Change (%)',
+              'Minimum change (%)',
+              _changeMin,
+              (value) => setState(() => _changeMin = value),
+              'Maximum change (%)',
+              _changeMax,
+              (value) => setState(() => _changeMax = value),
             ),
           ],
         ),
@@ -255,37 +337,61 @@ class _FilterScreenState extends State<FilterScreen> {
     );
   }
 
-  Widget _buildLossThresholdCard(ThemeData theme) {
+  Widget _buildFundamentalsSection(ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _buildRangeInput(
+          theme,
+          'Dividend Yield',
+          'Minimum dividend yield (%)',
+          _dividendMin,
+          (value) => setState(() => _dividendMin = value),
+          'Maximum dividend yield (%)',
+          _dividendMax,
+          (value) => setState(() => _dividendMax = value),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassificationSection(ThemeData theme) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Minimum Loss Percentage',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            _buildDropdown(
+              theme,
+              'Sector',
+              _sector,
+              _sectorOptions,
+              (value) => setState(() => _sector = value),
             ),
             const SizedBox(height: 16),
-            Slider(
-              value: _lossThreshold,
-              min: 1.0,
-              max: 20.0,
-              divisions: 19,
-              label: '${_lossThreshold.toStringAsFixed(1)}%',
-              onChanged: (value) {
-                setState(() {
-                  _lossThreshold = value;
-                });
-              },
+            _buildDropdown(
+              theme,
+              'Industry',
+              _industry,
+              _industryOptions,
+              (value) => setState(() => _industry = value),
             ),
-            Text(
-              'Show stocks with at least ${_lossThreshold.toStringAsFixed(1)}% loss',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-              ),
+            const SizedBox(height: 16),
+            _buildDropdown(
+              theme,
+              'Exchange',
+              _exchange,
+              _exchangeOptions,
+              (value) => setState(() => _exchange = value),
+            ),
+            const SizedBox(height: 16),
+            _buildDropdown(
+              theme,
+              'Country',
+              _country,
+              _countryOptions,
+              (value) => setState(() => _country = value),
             ),
           ],
         ),
@@ -293,37 +399,31 @@ class _FilterScreenState extends State<FilterScreen> {
     );
   }
 
-  Widget _buildGainThresholdCard(ThemeData theme) {
+  Widget _buildTradingStatusSection(ThemeData theme) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Minimum Gain Percentage',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+            _buildTriStateSwitch(
+              theme,
+              'ETF',
+              _isEtf,
+              (value) => setState(() => _isEtf = value),
             ),
             const SizedBox(height: 16),
-            Slider(
-              value: _gainThreshold,
-              min: 1.0,
-              max: 20.0,
-              divisions: 19,
-              label: '${_gainThreshold.toStringAsFixed(1)}%',
-              onChanged: (value) {
-                setState(() {
-                  _gainThreshold = value;
-                });
-              },
+            _buildTriStateSwitch(
+              theme,
+              'Fund',
+              _isFund,
+              (value) => setState(() => _isFund = value),
             ),
-            Text(
-              'Show stocks with at least ${_gainThreshold.toStringAsFixed(1)}% gain',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-              ),
+            const SizedBox(height: 16),
+            _buildTriStateSwitch(
+              theme,
+              'Actively Trading',
+              _isActivelyTrading,
+              (value) => setState(() => _isActivelyTrading = value),
             ),
           ],
         ),
@@ -331,7 +431,7 @@ class _FilterScreenState extends State<FilterScreen> {
     );
   }
 
-  Widget _buildTimeframeCard(ThemeData theme) {
+  Widget _buildResultsSection(ThemeData theme) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -339,39 +439,181 @@ class _FilterScreenState extends State<FilterScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Time Period',
+              'Results Limit',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              children: _timeframeOptions.map((timeframe) {
-                final isSelected = _timeframe == timeframe;
-                return ChoiceChip(
-                  label: Text(timeframe.capitalize()),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    if (selected) {
-                      setState(() {
-                        _timeframe = timeframe;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
             ),
             const SizedBox(height: 8),
+            Slider(
+              value: _limit.toDouble(),
+              min: 10,
+              max: 5000,
+              divisions: 499,
+              label: _limit.toString(),
+              onChanged: (value) => setState(() => _limit = value.toInt()),
+            ),
             Text(
-              'Calculate percentage changes over $_timeframe period',
+              'Maximum $_limit results',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              title: Text(
+                'Include All Share Classes',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              subtitle: Text(
+                'Include all share classes (A, B, etc.)',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              value: _includeAllShareClasses,
+              onChanged: (value) =>
+                  setState(() => _includeAllShareClasses = value),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRangeInput(
+    ThemeData theme,
+    String title,
+    String minLabel,
+    double? minValue,
+    Function(double?) onMinChanged,
+    String maxLabel,
+    double? maxValue,
+    Function(double?) onMaxChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: minLabel,
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                controller: TextEditingController(
+                  text: minValue?.toString() ?? '',
+                ),
+                onChanged: (value) {
+                  final parsed = double.tryParse(value);
+                  onMinChanged(parsed);
+                },
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextField(
+                decoration: InputDecoration(
+                  labelText: maxLabel,
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+                controller: TextEditingController(
+                  text: maxValue?.toString() ?? '',
+                ),
+                onChanged: (value) {
+                  final parsed = double.tryParse(value);
+                  onMaxChanged(parsed);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown(
+    ThemeData theme,
+    String label,
+    String? value,
+    List<String> options,
+    Function(String?) onChanged,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          items: [
+            const DropdownMenuItem<String>(value: null, child: Text('Any')),
+            ...options.map(
+              (option) =>
+                  DropdownMenuItem<String>(value: option, child: Text(option)),
+            ),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTriStateSwitch(
+    ThemeData theme,
+    String label,
+    bool? value,
+    Function(bool?) onChanged,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        DropdownButton<bool?>(
+          value: value,
+          items: const [
+            DropdownMenuItem<bool?>(value: null, child: Text('Any')),
+            DropdownMenuItem<bool?>(value: true, child: Text('Yes')),
+            DropdownMenuItem<bool?>(value: false, child: Text('No')),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 
@@ -384,132 +626,106 @@ class _FilterScreenState extends State<FilterScreen> {
     try {
       final apiKey = dotenv.env['FMP_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
-        throw Exception('FMP API key not found in environment variables');
+        throw Exception('API key not found');
       }
 
-      // Use screener to get stocks with good volume and reasonable price
-      final screenerUrl =
-          'https://financialmodelingprep.com/api/v3/stock-screener'
-          '?volumeMoreThan=100000'
-          '&priceMoreThan=1'
-          '&priceLowerThan=1000'
-          '&limit=200'
-          '&apikey=$apiKey';
+      // Build query parameters
+      final queryParams = <String, String>{};
 
-      final screenerResponse = await http.get(Uri.parse(screenerUrl));
+      if (_marketCapMin != null)
+        queryParams['marketCapMoreThan'] = (_marketCapMin! * 1000000)
+            .toStringAsFixed(0);
+      if (_marketCapMax != null)
+        queryParams['marketCapLowerThan'] = (_marketCapMax! * 1000000)
+            .toStringAsFixed(0);
+      if (_priceMin != null)
+        queryParams['priceMoreThan'] = _priceMin!.toString();
+      if (_priceMax != null)
+        queryParams['priceLowerThan'] = _priceMax!.toString();
+      if (_betaMin != null) queryParams['betaMoreThan'] = _betaMin!.toString();
+      if (_betaMax != null) queryParams['betaLowerThan'] = _betaMax!.toString();
+      if (_volumeMin != null)
+        queryParams['volumeMoreThan'] = _volumeMin!.toStringAsFixed(0);
+      if (_volumeMax != null)
+        queryParams['volumeLowerThan'] = _volumeMax!.toStringAsFixed(0);
+      if (_changeMin != null)
+        queryParams['changeMoreThan'] = _changeMin!.toString();
+      if (_changeMax != null)
+        queryParams['changeLowerThan'] = _changeMax!.toString();
+      if (_dividendMin != null)
+        queryParams['dividendMoreThan'] = _dividendMin!.toString();
+      if (_dividendMax != null)
+        queryParams['dividendLowerThan'] = _dividendMax!.toString();
+      if (_sector != null) queryParams['sector'] = _sector!;
+      if (_industry != null) queryParams['industry'] = _industry!;
+      if (_exchange != null) queryParams['exchange'] = _exchange!;
+      if (_country != null) queryParams['country'] = _country!;
+      if (_isEtf != null) queryParams['isEtf'] = _isEtf!.toString();
+      if (_isFund != null) queryParams['isFund'] = _isFund!.toString();
+      if (_isActivelyTrading != null)
+        queryParams['isActivelyTrading'] = _isActivelyTrading!.toString();
+      queryParams['limit'] = _limit.toString();
+      queryParams['includeAllShareClasses'] = _includeAllShareClasses
+          .toString();
 
-      if (screenerResponse.statusCode != 200) {
-        throw Exception(
-          'Failed to fetch stock screener data: ${screenerResponse.statusCode}',
-        );
-      }
+      // Build URL with query parameters
+      final uri = Uri.https(
+        'financialmodelingprep.com',
+        '/api/v3/stock-screener',
+        queryParams,
+      );
 
-      final List<dynamic> screenerData = json.decode(screenerResponse.body);
-
-      if (screenerData.isEmpty) {
-        throw Exception('No stocks found in screener');
-      }
-
-      // Get symbols from screener results
-      final symbols = screenerData
-          .map((item) => item['symbol']?.toString())
-          .where((symbol) => symbol != null)
-          .take(100) // Limit to avoid URL length issues
-          .join(',');
-
-      // Get detailed quotes for these stocks
-      final quotesUrl =
-          'https://financialmodelingprep.com/api/v3/quote/$symbols?apikey=$apiKey';
-      final quotesResponse = await http.get(Uri.parse(quotesUrl));
-
-      if (quotesResponse.statusCode != 200) {
-        throw Exception(
-          'Failed to fetch stock quotes: ${quotesResponse.statusCode}',
-        );
-      }
-
-      final List<dynamic> quotesData = json.decode(quotesResponse.body);
-
-      // Filter stocks based on user criteria
-      final filteredStocks = quotesData
-          .where((item) {
-            final changesPercentage =
-                (item['changesPercentage'] as num?)?.toDouble() ?? 0.0;
-            final price = (item['price'] as num?)?.toDouble() ?? 0.0;
-            final volume = (item['volume'] as num?)?.toDouble() ?? 0.0;
-
-            // Basic validation to ensure we have good data
-            if (price <= 0 || volume <= 0) return false;
-
-            // Apply filter based on type and thresholds
-            switch (_filterType) {
-              case 'loss':
-                return changesPercentage <= -_lossThreshold;
-              case 'gain':
-                return changesPercentage >= _gainThreshold;
-              case 'both':
-                return changesPercentage <= -_lossThreshold ||
-                    changesPercentage >= _gainThreshold;
-              default:
-                return false;
-            }
-          })
-          .map((item) => FilteredStock.fromJson(item))
-          .toList();
-
-      // Sort by change percentage (most extreme first)
-      filteredStocks.sort((a, b) {
-        if (_filterType == 'loss') {
-          return a.changesPercentage.compareTo(
-            b.changesPercentage,
-          ); // Most negative first
-        } else if (_filterType == 'gain') {
-          return b.changesPercentage.compareTo(
-            a.changesPercentage,
-          ); // Most positive first
-        } else {
-          // For 'both', sort by absolute change magnitude
-          return b.changesPercentage.abs().compareTo(a.changesPercentage.abs());
-        }
-      });
-
-      setState(() {
-        _filteredStocks = filteredStocks
-            .take(50)
-            .toList(); // Limit to 50 results
-        _filtersApplied = true;
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Found ${_filteredStocks.length} stocks matching your criteria',
-          ),
-          action: SnackBarAction(label: 'OK', onPressed: () {}),
+      final response = await http.get(
+        uri.replace(
+          queryParameters: {...uri.queryParameters, 'apikey': apiKey},
         ),
       );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _filteredStocks = data
+              .map((json) => FilteredStock.fromJson(json))
+              .toList();
+          _filtersApplied = true;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception(
+          'Failed to fetch filtered stocks: ${response.statusCode}',
+        );
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();
         _isLoading = false;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
     }
   }
 
   void _resetFilters() {
     setState(() {
-      _lossThreshold = 5.0;
-      _gainThreshold = 5.0;
-      _filterType = 'loss';
-      _timeframe = 'daily';
+      _marketCapMin = null;
+      _marketCapMax = null;
+      _priceMin = null;
+      _priceMax = null;
+      _betaMin = null;
+      _betaMax = null;
+      _volumeMin = null;
+      _volumeMax = null;
+      _changeMin = null;
+      _changeMax = null;
+      _dividendMin = null;
+      _dividendMax = null;
+      _sector = null;
+      _industry = null;
+      _exchange = null;
+      _country = null;
+      _isEtf = null;
+      _isFund = null;
+      _isActivelyTrading = null;
+      _limit = 100;
+      _includeAllShareClasses = false;
       _filteredStocks = [];
       _filtersApplied = false;
       _error = null;
@@ -517,225 +733,177 @@ class _FilterScreenState extends State<FilterScreen> {
   }
 
   Widget _buildFilteredResultsScrollable(ThemeData theme) {
+    if (_error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(Icons.error_outline, color: theme.colorScheme.error, size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading filtered stocks',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_filteredStocks.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Icon(
+              Icons.search_off,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 48,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No stocks match your criteria',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try adjusting your filters to see more results',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Results header
           Row(
             children: [
-              Icon(Icons.list_alt, color: theme.colorScheme.primary, size: 20),
+              Icon(Icons.list, color: theme.colorScheme.primary, size: 24),
               const SizedBox(width: 8),
               Text(
-                'Filtered Results',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${_filteredStocks.length} stocks',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                'Filtered Results (${_filteredStocks.length})',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _filteredStocks.length,
+            itemBuilder: (context, index) {
+              final stock = _filteredStocks[index];
+              final isPositive = stock.changesPercentage >= 0;
 
-          // Results list
-          if (_error != null) ...[
-            _buildErrorWidget(theme),
-          ] else if (_filteredStocks.isEmpty) ...[
-            _buildEmptyWidget(theme),
-          ] else ...[
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _filteredStocks.length,
-              itemBuilder: (context, index) {
-                final stock = _filteredStocks[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/detail',
-                        arguments: {'symbol': stock.symbol},
-                      );
-                    },
-                    leading: CircleAvatar(
-                      backgroundColor: _getChangeColor(
-                        stock.changesPercentage,
-                        theme,
-                      ).withOpacity(0.1),
-                      child: Text(
-                        stock.symbol.substring(0, 2).toUpperCase(),
-                        style: TextStyle(
-                          color: _getChangeColor(
-                            stock.changesPercentage,
-                            theme,
-                          ),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    title: Text(
-                      stock.symbol,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          stock.name,
-                          style: theme.textTheme.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Text(
-                              'Vol: ${_formatVolume(stock.volume)}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: Image.network(
+                        'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: theme.colorScheme.error.withOpacity(0.1),
+                            child: Center(
+                              child: Text(
+                                stock.symbol.substring(0, 2).toUpperCase(),
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '\$${stock.price.toStringAsFixed(2)}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getChangeColor(
-                              stock.changesPercentage,
-                              theme,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${stock.changesPercentage >= 0 ? '+' : ''}${stock.changesPercentage.toStringAsFixed(1)}%',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
+                          );
+                        },
+                      ),
                     ),
                   ),
-                );
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
-          const SizedBox(height: 16),
-          Text(
-            'Failed to load filtered results',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _error ?? 'Unknown error occurred',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(onPressed: _applyFilters, child: const Text('Retry')),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyWidget(ThemeData theme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.search_off,
-            size: 64,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No stocks found',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Try adjusting your filter criteria',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+                  title: Text(
+                    stock.symbol,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stock.name,
+                        style: theme.textTheme.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '\$${stock.price.toStringAsFixed(2)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${isPositive ? '+' : ''}${stock.changesPercentage.toStringAsFixed(2)}%',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isPositive
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${stock.volume.toStringAsFixed(0)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/detail',
+                    arguments: {'symbol': stock.symbol},
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
     );
-  }
-
-  Color _getChangeColor(double changePercent, ThemeData theme) {
-    if (changePercent > 0) {
-      return Colors.green;
-    } else if (changePercent < 0) {
-      return theme.colorScheme.error;
-    } else {
-      return theme.colorScheme.outline;
-    }
-  }
-
-  String _formatVolume(double volume) {
-    if (volume >= 1000000000) {
-      return '${(volume / 1000000000).toStringAsFixed(1)}B';
-    } else if (volume >= 1000000) {
-      return '${(volume / 1000000).toStringAsFixed(1)}M';
-    } else if (volume >= 1000) {
-      return '${(volume / 1000).toStringAsFixed(1)}K';
-    }
-    return volume.toStringAsFixed(0);
-  }
-}
-
-extension StringExtension on String {
-  String capitalize() {
-    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }
 

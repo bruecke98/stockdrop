@@ -3,11 +3,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 // Import the new ChartWidget
 import '../widgets/chart_widget.dart';
 import '../services/api_service.dart';
 import '../models/stock.dart';
+import 'stock_comparison_screen.dart';
+
+/// Data class for ratio chart visualization
+class RatioChartData {
+  final String label;
+  final List<double?> data;
+  final Color color;
+
+  const RatioChartData({
+    required this.label,
+    required this.data,
+    required this.color,
+  });
+}
 
 /// Detail screen for StockDrop app
 /// Shows detailed stock information including price, chart, and news
@@ -26,6 +41,15 @@ class _DetailScreenState extends State<DetailScreen> {
   PriceTargetConsensus? _priceTarget;
   DcfAnalysis? _dcfAnalysis;
   List<KeyMetrics> _keyMetrics = [];
+  int _selectedMetricsIndex = 0; // Index of selected year for key metrics
+  List<FinancialRatios> _financialRatios = [];
+  int _selectedRatiosIndex = 0; // Index of selected year for ratios
+  bool _isRatiosChartView =
+      false; // Toggle between table and chart view for ratios
+  FinancialScores? _financialScores;
+  List<SectorPerformance> _sectorPerformance = [];
+  List<InsiderTrading> _insiderTrading = [];
+  List<RevenueSegmentation> _revenueSegmentation = [];
   CompanyProfile? _companyProfile;
   bool _isLoading = true;
   bool _isFavorite = false;
@@ -80,7 +104,14 @@ class _DetailScreenState extends State<DetailScreen> {
               Navigator.pushNamed(context, '/search');
             },
           ),
-          if (_stockDetail != null) _buildFavoriteButton(theme),
+          if (_stockDetail != null) ...[
+            IconButton(
+              icon: const Icon(Icons.compare_arrows),
+              onPressed: () => _navigateToComparison(),
+              tooltip: 'Compare Stocks',
+            ),
+            _buildFavoriteButton(theme),
+          ],
         ],
       ),
       body: _buildBody(theme),
@@ -140,6 +171,16 @@ class _DetailScreenState extends State<DetailScreen> {
             _buildDcfAnalysisSection(theme),
             const SizedBox(height: 24),
             _buildKeyMetricsSection(theme),
+            const SizedBox(height: 24),
+            _buildFinancialRatiosSection(theme),
+            const SizedBox(height: 24),
+            _buildFinancialScoresSection(theme),
+            const SizedBox(height: 24),
+            _buildSectorComparisonSection(theme),
+            const SizedBox(height: 24),
+            _buildInsiderTradingSection(theme),
+            const SizedBox(height: 24),
+            _buildRevenueSegmentationSection(theme),
             const SizedBox(height: 24),
             _buildNewsSection(theme),
           ],
@@ -844,6 +885,205 @@ class _DetailScreenState extends State<DetailScreen> {
       symbol: _stockSymbol!,
       height: 350,
       lineColor: chartColor,
+    );
+  }
+
+  Widget _buildRevenueSegmentationSection(ThemeData theme) {
+    if (_revenueSegmentation.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Get the most recent segmentation data
+    final latestSegmentation = _revenueSegmentation.first;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.business_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Revenue by Product',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'FY${latestSegmentation.fiscalYear} ${latestSegmentation.period} - ${RevenueSegmentation.formatRevenue(latestSegmentation.totalRevenue)} total revenue',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildRevenueSegmentationChart(theme, latestSegmentation),
+          const SizedBox(height: 20),
+          _buildRevenueSegmentationList(theme, latestSegmentation),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRevenueSegmentationChart(
+    ThemeData theme,
+    RevenueSegmentation segmentation,
+  ) {
+    final sortedProducts = segmentation.sortedProducts.take(
+      6,
+    ); // Top 6 products
+
+    return Container(
+      height: 250,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Revenue Breakdown',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: PieChart(
+              PieChartData(
+                sections: List.generate(sortedProducts.length, (index) {
+                  final product = sortedProducts.elementAt(index);
+                  final percentage = segmentation.getProductPercentage(
+                    product.key,
+                  );
+                  final colors = [
+                    Colors.blue,
+                    Colors.green,
+                    Colors.orange,
+                    Colors.red,
+                    Colors.purple,
+                    Colors.teal,
+                  ];
+
+                  return PieChartSectionData(
+                    value: product.value,
+                    title: '${percentage.toStringAsFixed(1)}%',
+                    radius: 80,
+                    titleStyle: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                    color: colors[index % colors.length],
+                  );
+                }),
+                sectionsSpace: 2,
+                centerSpaceRadius: 40,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRevenueSegmentationList(
+    ThemeData theme,
+    RevenueSegmentation segmentation,
+  ) {
+    final sortedProducts = segmentation.sortedProducts;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Product Details',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...sortedProducts.map((product) {
+          final percentage = segmentation.getProductPercentage(product.key);
+          final colors = [
+            Colors.blue,
+            Colors.green,
+            Colors.orange,
+            Colors.red,
+            Colors.purple,
+            Colors.teal,
+          ];
+          final colorIndex = sortedProducts.indexOf(product) % colors.length;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.1),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: colors[colorIndex],
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.key,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${percentage.toStringAsFixed(1)}% of total revenue',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  RevenueSegmentation.formatRevenue(product.value),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
     );
   }
 
@@ -2751,7 +2991,7 @@ class _DetailScreenState extends State<DetailScreen> {
       return const SizedBox.shrink();
     }
 
-    final latestMetrics = _keyMetrics.first;
+    final selectedMetrics = _keyMetrics[_selectedMetricsIndex];
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -2778,22 +3018,57 @@ class _DetailScreenState extends State<DetailScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'FY ${latestMetrics.fiscalYear ?? 'N/A'}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
             ],
           ),
+          const SizedBox(height: 12),
+          // Year slider
+          if (_keyMetrics.length > 1)
+            Column(
+              children: [
+                Slider(
+                  value: _selectedMetricsIndex.toDouble(),
+                  min: 0,
+                  max: (_keyMetrics.length - 1).toDouble(),
+                  divisions: _keyMetrics.length - 1,
+                  onChanged: (double value) {
+                    setState(() {
+                      _selectedMetricsIndex = value.toInt();
+                    });
+                  },
+                  activeColor: theme.colorScheme.primary,
+                  inactiveColor: theme.colorScheme.primaryContainer.withOpacity(
+                    0.3,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'FY ${_keyMetrics.first.fiscalYear ?? 'N/A'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                      Text(
+                        'FY ${_keyMetrics[_selectedMetricsIndex].fiscalYear ?? 'N/A'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      Text(
+                        'FY ${_keyMetrics.last.fiscalYear ?? 'N/A'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
 
           // Financial Health Score
@@ -2801,12 +3076,12 @@ class _DetailScreenState extends State<DetailScreen> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: _getHealthScoreColor(
-                latestMetrics.financialHealthScore,
+                selectedMetrics.financialHealthScore,
               ).withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _getHealthScoreColor(
-                  latestMetrics.financialHealthScore,
+                  selectedMetrics.financialHealthScore,
                 ).withOpacity(0.3),
               ),
             ),
@@ -2824,7 +3099,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        latestMetrics.financialHealthDescription,
+                        selectedMetrics.financialHealthDescription,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -2837,13 +3112,13 @@ class _DetailScreenState extends State<DetailScreen> {
                   height: 60,
                   decoration: BoxDecoration(
                     color: _getHealthScoreColor(
-                      latestMetrics.financialHealthScore,
+                      selectedMetrics.financialHealthScore,
                     ),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
-                      '${latestMetrics.financialHealthScore}',
+                      '${selectedMetrics.financialHealthScore}',
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -2861,27 +3136,27 @@ class _DetailScreenState extends State<DetailScreen> {
           _buildMetricsCategory('Valuation Metrics', [
             _buildMetricRow(
               'Market Cap',
-              latestMetrics.formattedMarketCap,
+              selectedMetrics.formattedMarketCap,
               theme,
             ),
             _buildMetricRow(
               'Enterprise Value',
-              latestMetrics.formattedEnterpriseValue,
+              selectedMetrics.formattedEnterpriseValue,
               theme,
             ),
             _buildMetricRow(
               'EV/Sales',
-              latestMetrics.formatRatio(latestMetrics.evToSales),
+              selectedMetrics.formatRatio(selectedMetrics.evToSales),
               theme,
             ),
             _buildMetricRow(
               'EV/EBITDA',
-              latestMetrics.formatRatio(latestMetrics.evToEBITDA),
+              selectedMetrics.formatRatio(selectedMetrics.evToEBITDA),
               theme,
             ),
             _buildMetricRow(
               'EV/FCF',
-              latestMetrics.formatRatio(latestMetrics.evToFreeCashFlow),
+              selectedMetrics.formatRatio(selectedMetrics.evToFreeCashFlow),
               theme,
             ),
           ], theme),
@@ -2892,31 +3167,31 @@ class _DetailScreenState extends State<DetailScreen> {
           _buildMetricsCategory('Profitability Metrics', [
             _buildMetricRow(
               'Return on Equity (ROE)',
-              latestMetrics.formatPercentage(latestMetrics.returnOnEquity),
+              selectedMetrics.formatPercentage(selectedMetrics.returnOnEquity),
               theme,
             ),
             _buildMetricRow(
               'Return on Assets (ROA)',
-              latestMetrics.formatPercentage(latestMetrics.returnOnAssets),
+              selectedMetrics.formatPercentage(selectedMetrics.returnOnAssets),
               theme,
             ),
             _buildMetricRow(
               'Return on Invested Capital',
-              latestMetrics.formatPercentage(
-                latestMetrics.returnOnInvestedCapital,
+              selectedMetrics.formatPercentage(
+                selectedMetrics.returnOnInvestedCapital,
               ),
               theme,
             ),
             _buildMetricRow(
               'Operating ROA',
-              latestMetrics.formatPercentage(
-                latestMetrics.operatingReturnOnAssets,
+              selectedMetrics.formatPercentage(
+                selectedMetrics.operatingReturnOnAssets,
               ),
               theme,
             ),
             _buildMetricRow(
               'Earnings Yield',
-              latestMetrics.formatPercentage(latestMetrics.earningsYield),
+              selectedMetrics.formatPercentage(selectedMetrics.earningsYield),
               theme,
             ),
           ], theme),
@@ -2927,27 +3202,29 @@ class _DetailScreenState extends State<DetailScreen> {
           _buildMetricsCategory('Liquidity & Efficiency', [
             _buildMetricRow(
               'Current Ratio',
-              latestMetrics.formatRatio(latestMetrics.currentRatio),
+              selectedMetrics.formatRatio(selectedMetrics.currentRatio),
               theme,
             ),
             _buildMetricRow(
               'Working Capital',
-              latestMetrics.formattedWorkingCapital,
+              selectedMetrics.formattedWorkingCapital,
               theme,
             ),
             _buildMetricRow(
               'Cash Conversion Cycle',
-              latestMetrics.formatDays(latestMetrics.cashConversionCycle),
+              selectedMetrics.formatDays(selectedMetrics.cashConversionCycle),
               theme,
             ),
             _buildMetricRow(
               'Days Sales Outstanding',
-              latestMetrics.formatDays(latestMetrics.daysOfSalesOutstanding),
+              selectedMetrics.formatDays(
+                selectedMetrics.daysOfSalesOutstanding,
+              ),
               theme,
             ),
             _buildMetricRow(
               'Income Quality',
-              latestMetrics.formatRatio(latestMetrics.incomeQuality),
+              selectedMetrics.formatRatio(selectedMetrics.incomeQuality),
               theme,
             ),
           ], theme),
@@ -2958,25 +3235,27 @@ class _DetailScreenState extends State<DetailScreen> {
           _buildMetricsCategory('Cash Flow Metrics', [
             _buildMetricRow(
               'Free Cash Flow Yield',
-              latestMetrics.formatPercentage(latestMetrics.freeCashFlowYield),
+              selectedMetrics.formatPercentage(
+                selectedMetrics.freeCashFlowYield,
+              ),
               theme,
             ),
             _buildMetricRow(
               'CapEx to Operating CF',
-              latestMetrics.formatPercentage(
-                latestMetrics.capexToOperatingCashFlow,
+              selectedMetrics.formatPercentage(
+                selectedMetrics.capexToOperatingCashFlow,
               ),
               theme,
             ),
             _buildMetricRow(
               'CapEx to Revenue',
-              latestMetrics.formatPercentage(latestMetrics.capexToRevenue),
+              selectedMetrics.formatPercentage(selectedMetrics.capexToRevenue),
               theme,
             ),
             _buildMetricRow(
               'R&D to Revenue',
-              latestMetrics.formatPercentage(
-                latestMetrics.researchAndDevelopementToRevenue,
+              selectedMetrics.formatPercentage(
+                selectedMetrics.researchAndDevelopementToRevenue,
               ),
               theme,
             ),
@@ -3072,6 +3351,1637 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Widget _buildFinancialRatiosSection(ThemeData theme) {
+    if (_financialRatios.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.analytics_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Financial Ratios',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              // Toggle between table and chart view
+              Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => setState(() => _isRatiosChartView = false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: !_isRatiosChartView
+                              ? theme.colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Table',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: !_isRatiosChartView
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _isRatiosChartView = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _isRatiosChartView
+                              ? theme.colorScheme.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Chart',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: _isRatiosChartView
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Show either table or chart view
+          _isRatiosChartView
+              ? _buildRatiosChartView(theme)
+              : _buildRatiosTableView(theme),
+
+          if (_financialRatios.length > 1) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.history,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_financialRatios.length} years of historical ratios available',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRatiosTableView(ThemeData theme) {
+    final selectedRatios = _financialRatios[_selectedRatiosIndex];
+
+    return Column(
+      children: [
+        // Year slider
+        if (_financialRatios.length > 1)
+          Column(
+            children: [
+              Slider(
+                value: _selectedRatiosIndex.toDouble(),
+                min: 0,
+                max: (_financialRatios.length - 1).toDouble(),
+                divisions: _financialRatios.length - 1,
+                onChanged: (double value) {
+                  setState(() {
+                    _selectedRatiosIndex = value.toInt();
+                  });
+                },
+                activeColor: theme.colorScheme.primary,
+                inactiveColor: theme.colorScheme.primaryContainer.withOpacity(
+                  0.3,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _financialRatios.first.formattedPeriod,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                    Text(
+                      _financialRatios[_selectedRatiosIndex].formattedPeriod,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    Text(
+                      _financialRatios.last.formattedPeriod,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        if (_financialRatios.length > 1) const SizedBox(height: 16),
+
+        // Profitability Ratios
+        _buildRatiosCategory('Profitability Ratios', [
+          _buildMetricRow(
+            'Gross Profit Margin',
+            selectedRatios.formatPercentage(selectedRatios.grossProfitMargin),
+            theme,
+          ),
+          _buildMetricRow(
+            'Operating Profit Margin',
+            selectedRatios.formatPercentage(
+              selectedRatios.operatingProfitMargin,
+            ),
+            theme,
+          ),
+          _buildMetricRow(
+            'Net Profit Margin',
+            selectedRatios.formatPercentage(selectedRatios.netProfitMargin),
+            theme,
+          ),
+          _buildMetricRow(
+            'EBITDA Margin',
+            selectedRatios.formatPercentage(selectedRatios.ebitdaMargin),
+            theme,
+          ),
+        ], theme),
+
+        const SizedBox(height: 16),
+
+        // Valuation Ratios
+        _buildRatiosCategory('Valuation Ratios', [
+          _buildMetricRow(
+            'P/E Ratio',
+            selectedRatios.formatRatio(selectedRatios.priceToEarningsRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'P/B Ratio',
+            selectedRatios.formatRatio(selectedRatios.priceToBookRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'P/S Ratio',
+            selectedRatios.formatRatio(selectedRatios.priceToSalesRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'EV/EBITDA',
+            selectedRatios.formatRatio(selectedRatios.enterpriseValueMultiple),
+            theme,
+          ),
+        ], theme),
+
+        const SizedBox(height: 16),
+
+        // Liquidity Ratios
+        _buildRatiosCategory('Liquidity Ratios', [
+          _buildMetricRow(
+            'Current Ratio',
+            selectedRatios.formatRatio(selectedRatios.currentRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'Quick Ratio',
+            selectedRatios.formatRatio(selectedRatios.quickRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'Cash Ratio',
+            selectedRatios.formatRatio(selectedRatios.cashRatio),
+            theme,
+          ),
+        ], theme),
+
+        const SizedBox(height: 16),
+
+        // Leverage Ratios
+        _buildRatiosCategory('Leverage Ratios', [
+          _buildMetricRow(
+            'Debt to Equity',
+            selectedRatios.formatRatio(selectedRatios.debtToEquityRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'Debt to Assets',
+            selectedRatios.formatRatio(selectedRatios.debtToAssetsRatio),
+            theme,
+          ),
+          _buildMetricRow(
+            'Financial Leverage',
+            selectedRatios.formatRatio(selectedRatios.financialLeverageRatio),
+            theme,
+          ),
+        ], theme),
+
+        if (_financialRatios.length > 1) ...[
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.history,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${_financialRatios.length} years of historical ratios available',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRatiosChartView(ThemeData theme) {
+    // Get the last 5 years of data (or all if less than 5)
+    final chartData = _financialRatios.take(5).toList().reversed.toList();
+
+    return Column(
+      children: [
+        // Profitability Ratios Chart
+        _buildRatioChartCategory(
+          'Profitability Ratios',
+          [
+            RatioChartData(
+              label: 'Gross Profit Margin',
+              data: chartData.map((r) => r.grossProfitMargin).toList(),
+              color: Colors.blue,
+            ),
+            RatioChartData(
+              label: 'Operating Profit Margin',
+              data: chartData.map((r) => r.operatingProfitMargin).toList(),
+              color: Colors.green,
+            ),
+            RatioChartData(
+              label: 'Net Profit Margin',
+              data: chartData.map((r) => r.netProfitMargin).toList(),
+              color: Colors.orange,
+            ),
+            RatioChartData(
+              label: 'EBITDA Margin',
+              data: chartData.map((r) => r.ebitdaMargin).toList(),
+              color: Colors.purple,
+            ),
+          ],
+          chartData.map((r) => r.formattedPeriod).toList(),
+          theme,
+          isPercentage: true,
+        ),
+
+        const SizedBox(height: 24),
+
+        // Valuation Ratios Chart
+        _buildRatioChartCategory(
+          'Valuation Ratios',
+          [
+            RatioChartData(
+              label: 'P/E Ratio',
+              data: chartData.map((r) => r.priceToEarningsRatio).toList(),
+              color: Colors.red,
+            ),
+            RatioChartData(
+              label: 'P/B Ratio',
+              data: chartData.map((r) => r.priceToBookRatio).toList(),
+              color: Colors.teal,
+            ),
+            RatioChartData(
+              label: 'P/S Ratio',
+              data: chartData.map((r) => r.priceToSalesRatio).toList(),
+              color: Colors.indigo,
+            ),
+            RatioChartData(
+              label: 'EV/EBITDA',
+              data: chartData.map((r) => r.enterpriseValueMultiple).toList(),
+              color: Colors.amber,
+            ),
+          ],
+          chartData.map((r) => r.formattedPeriod).toList(),
+          theme,
+          isPercentage: false,
+        ),
+
+        const SizedBox(height: 24),
+
+        // Liquidity Ratios Chart
+        _buildRatioChartCategory(
+          'Liquidity Ratios',
+          [
+            RatioChartData(
+              label: 'Current Ratio',
+              data: chartData.map((r) => r.currentRatio).toList(),
+              color: Colors.cyan,
+            ),
+            RatioChartData(
+              label: 'Quick Ratio',
+              data: chartData.map((r) => r.quickRatio).toList(),
+              color: Colors.pink,
+            ),
+            RatioChartData(
+              label: 'Cash Ratio',
+              data: chartData.map((r) => r.cashRatio).toList(),
+              color: Colors.lime,
+            ),
+          ],
+          chartData.map((r) => r.formattedPeriod).toList(),
+          theme,
+          isPercentage: false,
+        ),
+
+        const SizedBox(height: 24),
+
+        // Leverage Ratios Chart
+        _buildRatioChartCategory(
+          'Leverage Ratios',
+          [
+            RatioChartData(
+              label: 'Debt to Equity',
+              data: chartData.map((r) => r.debtToEquityRatio).toList(),
+              color: Colors.deepOrange,
+            ),
+            RatioChartData(
+              label: 'Debt to Assets',
+              data: chartData.map((r) => r.debtToAssetsRatio).toList(),
+              color: Colors.lightBlue,
+            ),
+            RatioChartData(
+              label: 'Financial Leverage',
+              data: chartData.map((r) => r.financialLeverageRatio).toList(),
+              color: Colors.deepPurple,
+            ),
+          ],
+          chartData.map((r) => r.formattedPeriod).toList(),
+          theme,
+          isPercentage: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRatioChartCategory(
+    String title,
+    List<RatioChartData> ratios,
+    List<String> periods,
+    ThemeData theme, {
+    required bool isPercentage,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 300,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: true,
+                  horizontalInterval: isPercentage ? 0.1 : 1.0,
+                  verticalInterval: 1.0,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: theme.colorScheme.outline.withOpacity(0.3),
+                      strokeWidth: 1,
+                    );
+                  },
+                  getDrawingVerticalLine: (value) {
+                    return FlLine(
+                      color: theme.colorScheme.outline.withOpacity(0.3),
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index >= 0 && index < periods.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              periods[index],
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontSize: 10,
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: isPercentage ? 0.2 : 2.0,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) {
+                        return Text(
+                          isPercentage
+                              ? '${(value * 100).toStringAsFixed(0)}%'
+                              : value.toStringAsFixed(1),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withOpacity(0.3),
+                  ),
+                ),
+                minX: 0,
+                maxX: (periods.length - 1).toDouble(),
+                minY: 0,
+                maxY: isPercentage ? 1.0 : null,
+                lineBarsData: ratios.map((ratio) {
+                  return LineChartBarData(
+                    spots: List.generate(
+                      ratio.data.length,
+                      (index) =>
+                          FlSpot(index.toDouble(), ratio.data[index] ?? 0.0),
+                    ).where((spot) => spot.y != 0.0).toList(),
+                    isCurved: true,
+                    color: ratio.color,
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: ratio.color,
+                          strokeWidth: 2,
+                          strokeColor: theme.colorScheme.surface,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: ratio.color.withOpacity(0.1),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Legend
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: ratios.map((ratio) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: ratio.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    ratio.label,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialScoresSection(ThemeData theme) {
+    if (_financialScores == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.score_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Financial Health Scores',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Altman Z-Score
+          _buildScoreCard(
+            'Altman Z-Score',
+            _financialScores!.altmanZScore?.toStringAsFixed(2) ?? 'N/A',
+            _financialScores!.getAltmanZScoreInterpretation(),
+            _getScoreColor(_financialScores!.getAltmanZScoreColor()),
+            theme,
+            'Predicts bankruptcy risk. >3.0 = Safe, 1.8-3.0 = Grey Zone, <1.8 = Distress',
+            _buildAltmanZScoreBreakdown(theme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreCard(
+    String title,
+    String score,
+    String interpretation,
+    Color scoreColor,
+    ThemeData theme,
+    String description,
+    Widget breakdown,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: scoreColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: scoreColor.withOpacity(0.3)),
+                ),
+                child: Text(
+                  score,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: scoreColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: scoreColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              interpretation,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: scoreColor,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          breakdown,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAltmanZScoreBreakdown(ThemeData theme) {
+    final components = _financialScores!.getAltmanZScoreComponents();
+
+    if (components.isEmpty) {
+      return Text(
+        'Calculation components not available',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    // Calculate weighted components
+    final wcToTa = components['Working Capital / Total Assets'] ?? 0;
+    final reToTa = components['Retained Earnings / Total Assets'] ?? 0;
+    final ebitToTa = components['EBIT / Total Assets'] ?? 0;
+    final mvToTl =
+        components['Market Value of Equity / Total Liabilities'] ?? 0;
+    final salesToTa = components['Sales / Total Assets'] ?? 0;
+
+    final weightedA = 1.2 * wcToTa;
+    final weightedB = 1.4 * reToTa;
+    final weightedC = 3.3 * ebitToTa;
+    final weightedD = 0.6 * mvToTl;
+    final weightedE = 1.0 * salesToTa;
+
+    final totalScore = _financialScores!.altmanZScore ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Formula header
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              Text(
+                'Z-Score = 1.2A + 1.4B + 3.3C + 0.6D + 1.0E',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                  fontSize: 12,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildWeightedComponent('1.2A', weightedA, theme),
+                  const SizedBox(width: 8),
+                  Text(
+                    '+',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildWeightedComponent('1.4B', weightedB, theme),
+                  const SizedBox(width: 8),
+                  Text(
+                    '+',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildWeightedComponent('3.3C', weightedC, theme),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildWeightedComponent('0.6D', weightedD, theme),
+                  const SizedBox(width: 8),
+                  Text(
+                    '+',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildWeightedComponent('1.0E', weightedE, theme),
+                  const SizedBox(width: 8),
+                  Text(
+                    '=',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getScoreColor(
+                        _financialScores!.getAltmanZScoreColor(),
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      totalScore.toStringAsFixed(2),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Component breakdown
+        Text(
+          'Component Breakdown:',
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Component explanations with visual bars
+        _buildComponentExplanation(
+          'A: Working Capital / Total Assets',
+          'Liquidity measure',
+          wcToTa,
+          weightedA,
+          1.2,
+          theme,
+        ),
+        const SizedBox(height: 8),
+        _buildComponentExplanation(
+          'B: Retained Earnings / Total Assets',
+          'Accumulated profitability',
+          reToTa,
+          weightedB,
+          1.4,
+          theme,
+        ),
+        const SizedBox(height: 8),
+        _buildComponentExplanation(
+          'C: EBIT / Total Assets',
+          'Operating profitability',
+          ebitToTa,
+          weightedC,
+          3.3,
+          theme,
+        ),
+        const SizedBox(height: 8),
+        _buildComponentExplanation(
+          'D: Market Value / Total Liabilities',
+          'Market confidence in company',
+          mvToTl,
+          weightedD,
+          0.6,
+          theme,
+        ),
+        const SizedBox(height: 8),
+        _buildComponentExplanation(
+          'E: Sales / Total Assets',
+          'Asset utilization efficiency',
+          salesToTa,
+          weightedE,
+          1.0,
+          theme,
+        ),
+
+        const SizedBox(height: 16),
+        // Risk zones explanation
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Risk Zones:',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildRiskZone(
+                '> 3.0',
+                'Safe Zone',
+                'Low bankruptcy risk',
+                Colors.green,
+                theme,
+              ),
+              const SizedBox(height: 4),
+              _buildRiskZone(
+                '1.8 - 3.0',
+                'Grey Zone',
+                'Moderate risk',
+                Colors.orange,
+                theme,
+              ),
+              const SizedBox(height: 4),
+              _buildRiskZone(
+                '< 1.8',
+                'Distress Zone',
+                'High bankruptcy risk',
+                Colors.red,
+                theme,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeightedComponent(String label, double value, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '${value >= 0 ? '+' : ''}${value.toStringAsFixed(2)}',
+        style: theme.textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildComponentExplanation(
+    String formula,
+    String description,
+    double rawValue,
+    double weightedValue,
+    double weight,
+    ThemeData theme,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  formula,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              Text(
+                '${rawValue.toStringAsFixed(3)} × $weight = ${weightedValue.toStringAsFixed(2)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.primary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Visual bar
+          Container(
+            height: 4,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(2),
+            ),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: (rawValue.abs() / 0.5).clamp(
+                0.0,
+                1.0,
+              ), // Scale to 0-0.5 range
+              child: Container(
+                decoration: BoxDecoration(
+                  color: rawValue >= 0 ? Colors.green : Colors.red,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRiskZone(
+    String range,
+    String zone,
+    String description,
+    Color color,
+    ThemeData theme,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: '$range: ',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 11,
+                  ),
+                ),
+                TextSpan(
+                  text: '$zone - $description',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectorComparisonSection(ThemeData theme) {
+    if (_sectorPerformance.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Group sectors by exchange for better organization
+    final sectorsByExchange = <String, List<SectorPerformance>>{};
+    for (final sector in _sectorPerformance) {
+      sectorsByExchange.putIfAbsent(sector.exchange, () => []).add(sector);
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.business_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Sector Performance',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Real-time sector performance across major exchanges',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...sectorsByExchange.entries.map((entry) {
+            final exchange = entry.key;
+            final sectors = entry.value;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exchange,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: sectors
+                      .map(
+                        (sector) => _buildSectorPerformanceChip(sector, theme),
+                      )
+                      .toList(),
+                ),
+                if (entry.key != sectorsByExchange.keys.last)
+                  const SizedBox(height: 24),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectorPerformanceChip(
+    SectorPerformance sector,
+    ThemeData theme,
+  ) {
+    final color = sector.getPerformanceColor();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            sector.sector,
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            sector.formatPercentage(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsiderTradingSection(ThemeData theme) {
+    if (_insiderTrading.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.people_alt_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Insider Trading Activity',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Recent executive and director transactions (Form 4 filings)',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildInsiderTradingChart(theme),
+          const SizedBox(height: 20),
+          _buildInsiderTradingList(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsiderTradingChart(ThemeData theme) {
+    // Get the last 30 days of insider trading activity
+    final recentTrades = _insiderTrading.take(50).toList();
+
+    if (recentTrades.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Group trades by date for the chart
+    final tradesByDate = <String, List<InsiderTrading>>{};
+    for (final trade in recentTrades) {
+      final date = trade.transactionDate;
+      tradesByDate.putIfAbsent(date, () => []).add(trade);
+    }
+
+    // Sort dates chronologically
+    final sortedDates = tradesByDate.keys.toList()..sort();
+
+    // Calculate net activity per date (buys - sells)
+    final netActivity = <String, double>{};
+    for (final date in sortedDates) {
+      final trades = tradesByDate[date]!;
+      double netShares = 0;
+      for (final trade in trades) {
+        final shares = trade.securitiesTransacted.toDouble();
+        if (trade.isBuy) {
+          netShares += shares;
+        } else if (trade.isSell) {
+          netShares -= shares;
+        }
+      }
+      netActivity[date] = netShares;
+    }
+
+    return Container(
+      height: 200,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Insider Activity Trend',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: true,
+                  horizontalInterval: 10000,
+                  verticalInterval: 1.0,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: theme.colorScheme.outline.withOpacity(0.3),
+                      strokeWidth: 1,
+                    );
+                  },
+                  getDrawingVerticalLine: (value) {
+                    return FlLine(
+                      color: theme.colorScheme.outline.withOpacity(0.3),
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index >= 0 &&
+                            index < sortedDates.length &&
+                            index % 3 == 0) {
+                          try {
+                            final date = DateTime.parse(sortedDates[index]);
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                '${date.month}/${date.day}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontSize: 9,
+                                ),
+                              ),
+                            );
+                          } catch (e) {
+                            return const SizedBox.shrink();
+                          }
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 20000,
+                      reservedSize: 50,
+                      getTitlesWidget: (value, meta) {
+                        final formatted = (value / 1000).toStringAsFixed(0);
+                        return Text(
+                          '${formatted}K',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 9,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withOpacity(0.3),
+                  ),
+                ),
+                minX: 0,
+                maxX: (sortedDates.length - 1).toDouble(),
+                minY: null,
+                maxY: null,
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(
+                      sortedDates.length,
+                      (index) => FlSpot(
+                        index.toDouble(),
+                        netActivity[sortedDates[index]] ?? 0.0,
+                      ),
+                    ),
+                    isCurved: true,
+                    color: theme.colorScheme.primary,
+                    barWidth: 3,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        final netValue = spot.y;
+                        final color = netValue > 0
+                            ? Colors.green
+                            : netValue < 0
+                            ? Colors.red
+                            : Colors.grey;
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: color,
+                          strokeWidth: 2,
+                          strokeColor: theme.colorScheme.surface,
+                        );
+                      },
+                    ),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: theme.colorScheme.primary.withOpacity(0.1),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Net Buying',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Net Selling',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsiderTradingList(ThemeData theme) {
+    final recentTrades = _insiderTrading.take(10).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recent Transactions',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...recentTrades.map(
+          (trade) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: trade.getTransactionColor(),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trade.reportingName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      trade.formattedTransactionDate,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  trade.typeOfOwner,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      '${trade.isBuy
+                          ? "Bought"
+                          : trade.isSell
+                          ? "Sold"
+                          : "Other"} ${trade.securitiesTransacted.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} shares',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: trade.getTransactionColor(),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (trade.price > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        'at ${trade.formatPrice()}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Color _getScoreColor(String colorName) {
+    switch (colorName) {
+      case 'green':
+        return Colors.green;
+      case 'yellow':
+        return Colors.orange;
+      case 'red':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildRatiosCategory(
+    String title,
+    List<Widget> ratios,
+    ThemeData theme,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(children: ratios),
+        ),
+      ],
+    );
+  }
+
   Color _getHealthScoreColor(int score) {
     if (score >= 80) return Colors.green;
     if (score >= 65) return Colors.lightGreen;
@@ -3164,6 +5074,11 @@ class _DetailScreenState extends State<DetailScreen> {
         _fetchPriceTarget(),
         _fetchDcfAnalysis(),
         _fetchKeyMetrics(),
+        _fetchFinancialRatios(),
+        _fetchFinancialScores(),
+        _fetchSectorPerformance(),
+        _fetchInsiderTrading(),
+        _fetchRevenueSegmentation(),
         _fetchCompanyProfile(),
       ]);
     } catch (e) {
@@ -3263,8 +5178,73 @@ class _DetailScreenState extends State<DetailScreen> {
     try {
       final apiService = ApiService();
       _keyMetrics = await apiService.getKeyMetrics(_stockSymbol!, limit: 5);
+      // Reset to latest year (index 0) when new data is loaded
+      _selectedMetricsIndex = 0;
     } catch (e) {
       debugPrint('Error fetching key metrics: $e');
+    }
+  }
+
+  Future<void> _fetchFinancialRatios() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _financialRatios = await apiService.getFinancialRatios(
+        _stockSymbol!,
+        limit: 5,
+      );
+      // Reset to latest year (index 0) when new data is loaded
+      _selectedRatiosIndex = 0;
+    } catch (e) {
+      debugPrint('Error fetching financial ratios: $e');
+    }
+  }
+
+  Future<void> _fetchFinancialScores() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _financialScores = await apiService.getFinancialScores(_stockSymbol!);
+    } catch (e) {
+      debugPrint('Error fetching financial scores: $e');
+    }
+  }
+
+  Future<void> _fetchSectorPerformance() async {
+    try {
+      final apiService = ApiService();
+      _sectorPerformance = await apiService.getSectorPerformance();
+    } catch (e) {
+      debugPrint('Error fetching sector performance: $e');
+    }
+  }
+
+  Future<void> _fetchInsiderTrading() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _insiderTrading = await apiService.getInsiderTrading(
+        _stockSymbol!,
+        limit: 100,
+      );
+    } catch (e) {
+      debugPrint('Error fetching insider trading: $e');
+    }
+  }
+
+  Future<void> _fetchRevenueSegmentation() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _revenueSegmentation = await apiService.getRevenueProductSegmentation(
+        _stockSymbol!,
+      );
+    } catch (e) {
+      debugPrint('Error fetching revenue segmentation: $e');
     }
   }
 
@@ -3321,6 +5301,18 @@ class _DetailScreenState extends State<DetailScreen> {
         _isTogglingFavorite = false;
       });
     }
+  }
+
+  void _navigateToComparison() {
+    if (_stockDetail == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            StockComparisonScreen(initialStockDetail: _stockDetail!),
+      ),
+    );
   }
 
   Future<void> _refreshData() async {
