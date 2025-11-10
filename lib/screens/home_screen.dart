@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/commodity_card.dart';
+import '../widgets/enhanced_stock_card.dart';
 import '../screens/commodity_screen.dart';
 import '../screens/index_screen.dart';
 import '../models/commodity.dart';
+import '../models/commodity.dart' show Index;
 import '../services/api_service.dart';
 
 /// Home screen for StockDrop app
@@ -125,112 +127,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final stock = _stocks[index];
-                    return Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      child: Card(
-                        child: ListTile(
-                          onTap: () {
-                            Navigator.pushNamed(
-                              context,
-                              '/detail',
-                              arguments: {'symbol': stock.symbol},
-                            );
-                          },
-                          leading: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(7),
-                              child: Image.network(
-                                'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: theme.colorScheme.error.withOpacity(
-                                      0.1,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        stock.symbol
-                                            .substring(0, 2)
-                                            .toUpperCase(),
-                                        style: TextStyle(
-                                          color: theme.colorScheme.error,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            stock.symbol,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stock.name,
-                                style: theme.textTheme.bodyMedium,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Text(
-                                    'Vol: ${_formatVolume(stock.volume)}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '\$${stock.price.toStringAsFixed(2)}',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.error,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${stock.changesPercentage.toStringAsFixed(1)}%',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onError,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    return EnhancedStockCard(
+                      stock: StockLossAdapter(stock),
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/detail',
+                          arguments: {'symbol': stock.symbol},
+                        );
+                      },
                     );
                   }, childCount: _stocks.length),
                 ),
@@ -1176,13 +1081,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _formatVolume(double volume) {
-    if (volume >= 1000000) {
-      return '${(volume / 1000000).toStringAsFixed(1)}M';
-    } else if (volume >= 1000) {
-      return '${(volume / 1000).toStringAsFixed(1)}K';
+  String _getMarketCapCategory(double marketCap) {
+    if (marketCap >= 200e9) {
+      // $200B+
+      return 'Mega Cap';
+    } else if (marketCap >= 10e9) {
+      // $10B-$200B
+      return 'Large Cap';
+    } else if (marketCap >= 2e9) {
+      // $2B-$10B
+      return 'Mid Cap';
+    } else if (marketCap >= 300e6) {
+      // $300M-$2B
+      return 'Small Cap';
+    } else if (marketCap >= 50e6) {
+      // $50M-$300M
+      return 'Micro Cap';
+    } else {
+      // <$50M
+      return 'Nano Cap';
     }
-    return volume.toStringAsFixed(0);
   }
 }
 
@@ -1193,6 +1111,9 @@ class StockLoss {
   final double price;
   final double changesPercentage;
   final double volume;
+  final double? beta;
+  final String? sector;
+  final double? marketCap;
 
   StockLoss({
     required this.symbol,
@@ -1200,6 +1121,9 @@ class StockLoss {
     required this.price,
     required this.changesPercentage,
     required this.volume,
+    this.beta,
+    this.sector,
+    this.marketCap,
   });
 
   factory StockLoss.fromJson(Map<String, dynamic> json) {
@@ -1209,6 +1133,9 @@ class StockLoss {
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       changesPercentage: (json['changesPercentage'] as num?)?.toDouble() ?? 0.0,
       volume: (json['volume'] as num?)?.toDouble() ?? 0.0,
+      beta: (json['beta'] as num?)?.toDouble(),
+      sector: json['sector']?.toString(),
+      marketCap: (json['marketCap'] as num?)?.toDouble(),
     );
   }
 }

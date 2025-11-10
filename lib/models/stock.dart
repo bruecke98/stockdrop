@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Stock model class for StockDrop app
 /// Represents a stock with its current price and market data
 class Stock {
@@ -9,6 +11,8 @@ class Stock {
   final String? currency;
   final int? volume;
   final double? marketCap;
+  final double? beta;
+  final String? sector;
   final double? dayHigh;
   final double? dayLow;
   final double? yearHigh;
@@ -30,6 +34,8 @@ class Stock {
     this.currency,
     this.volume,
     this.marketCap,
+    this.beta,
+    this.sector,
     this.dayHigh,
     this.dayLow,
     this.yearHigh,
@@ -57,6 +63,8 @@ class Stock {
       currency: json['currency']?.toString(),
       volume: _parseInt(json['volume']),
       marketCap: _parseDouble(json['marketCap']),
+      beta: _parseDouble(json['beta']),
+      sector: json['sector']?.toString(),
       dayHigh: _parseDouble(json['dayHigh']),
       dayLow: _parseDouble(json['dayLow']),
       yearHigh: _parseDouble(json['yearHigh']),
@@ -88,6 +96,8 @@ class Stock {
       'currency': currency,
       'volume': volume,
       'marketCap': marketCap,
+      'beta': beta,
+      'sector': sector,
       'dayHigh': dayHigh,
       'dayLow': dayLow,
       'yearHigh': yearHigh,
@@ -203,10 +213,50 @@ class Stock {
     return price > priceAvg50!;
   }
 
-  /// Check if stock is above 200-day average
-  bool get isAbove200DayAvg {
-    if (priceAvg200 == null) return false;
-    return price > priceAvg200!;
+  /// Get formatted beta string
+  String get formattedBeta {
+    if (beta == null) return 'N/A';
+    return beta!.toStringAsFixed(2);
+  }
+
+  /// Get market cap category
+  String get marketCapCategory {
+    if (marketCap == null) return 'N/A';
+
+    if (marketCap! >= 200e9) {
+      // $200B+
+      return 'Mega Cap';
+    } else if (marketCap! >= 10e9) {
+      // $10B-$200B
+      return 'Large Cap';
+    } else if (marketCap! >= 2e9) {
+      // $2B-$10B
+      return 'Mid Cap';
+    } else if (marketCap! >= 300e6) {
+      // $300M-$2B
+      return 'Small Cap';
+    } else if (marketCap! >= 50e6) {
+      // $50M-$300M
+      return 'Micro Cap';
+    } else {
+      // <$50M
+      return 'Nano Cap';
+    }
+  }
+
+  /// Get beta color for UI display
+  Color getBetaColor(BuildContext context) {
+    if (beta == null) return Theme.of(context).colorScheme.onSurfaceVariant;
+
+    if (beta! > 3.0) {
+      return Colors.red;
+    } else if (beta! > 1.0) {
+      return Colors.yellow.shade700;
+    } else if (beta! == 1.0) {
+      return Colors.green;
+    } else {
+      return Colors.blue;
+    }
   }
 
   /// Create a copy of this Stock with updated values
@@ -219,6 +269,8 @@ class Stock {
     String? currency,
     int? volume,
     double? marketCap,
+    double? beta,
+    String? sector,
     double? dayHigh,
     double? dayLow,
     double? yearHigh,
@@ -240,6 +292,8 @@ class Stock {
       currency: currency ?? this.currency,
       volume: volume ?? this.volume,
       marketCap: marketCap ?? this.marketCap,
+      beta: beta ?? this.beta,
+      sector: sector ?? this.sector,
       dayHigh: dayHigh ?? this.dayHigh,
       dayLow: dayLow ?? this.dayLow,
       yearHigh: yearHigh ?? this.yearHigh,

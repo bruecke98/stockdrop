@@ -75,7 +75,7 @@ class _CommodityCardState extends State<CommodityCard> {
       return Container(
         margin: widget.margin,
         width: 100,
-        height: 40,
+        height: 50,
         child: const CommodityCardSkeleton(isCompact: true),
       );
     }
@@ -84,7 +84,7 @@ class _CommodityCardState extends State<CommodityCard> {
       return Container(
         margin: widget.margin,
         width: 100,
-        height: 40,
+        height: 50,
         child: Card(
           child: Container(
             padding: const EdgeInsets.all(4),
@@ -115,7 +115,7 @@ class _CommodityCardState extends State<CommodityCard> {
     return Container(
       margin: widget.margin,
       width: 100,
-      height: 40,
+      height: 50,
       child: Card(
         elevation: 2,
         child: Container(

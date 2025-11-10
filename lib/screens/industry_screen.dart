@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:stockdrop/services/api_service.dart';
 import 'package:stockdrop/models/stock.dart';
-import 'package:stockdrop/widgets/stock_card.dart';
 import 'package:stockdrop/screens/detail_screen.dart';
+import 'package:stockdrop/widgets/enhanced_stock_card.dart';
 
 class IndustryScreen extends StatefulWidget {
   const IndustryScreen({super.key});
@@ -398,12 +398,9 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
               itemCount: _stocks.length,
               itemBuilder: (context, index) {
                 final stock = _stocks[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: StockCard(
-                    stock: stock,
-                    onTap: () => _navigateToStockDetail(stock),
-                  ),
+                return EnhancedStockCard(
+                  stock: StockAdapter(stock),
+                  onTap: () => _navigateToStockDetail(stock),
                 );
               },
             ),
@@ -479,6 +476,28 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
         ),
       ),
     );
+  }
+
+  String _getMarketCapCategory(double marketCap) {
+    if (marketCap >= 200e9) {
+      // $200B+
+      return 'Mega Cap';
+    } else if (marketCap >= 10e9) {
+      // $10B-$200B
+      return 'Large Cap';
+    } else if (marketCap >= 2e9) {
+      // $2B-$10B
+      return 'Mid Cap';
+    } else if (marketCap >= 300e6) {
+      // $300M-$2B
+      return 'Small Cap';
+    } else if (marketCap >= 50e6) {
+      // $50M-$300M
+      return 'Micro Cap';
+    } else {
+      // <$50M
+      return 'Nano Cap';
+    }
   }
 
   void _navigateToStockDetail(Stock stock) {

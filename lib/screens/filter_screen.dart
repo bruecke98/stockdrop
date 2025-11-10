@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import '../widgets/enhanced_stock_card.dart';
 
 /// Comprehensive filter screen for stock screening using FMP Company Screener API
 class FilterScreen extends StatefulWidget {
@@ -813,90 +814,13 @@ class _FilterScreenState extends State<FilterScreen> {
             itemCount: _filteredStocks.length,
             itemBuilder: (context, index) {
               final stock = _filteredStocks[index];
-              final isPositive = stock.changesPercentage >= 0;
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
-                      child: Image.network(
-                        'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: theme.colorScheme.error.withOpacity(0.1),
-                            child: Center(
-                              child: Text(
-                                stock.symbol.substring(0, 2).toUpperCase(),
-                                style: TextStyle(
-                                  color: theme.colorScheme.error,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    stock.symbol,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        stock.name,
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '\$${stock.price.toStringAsFixed(2)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${isPositive ? '+' : ''}${stock.changesPercentage.toStringAsFixed(2)}%',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isPositive
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.error,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '${stock.volume.toStringAsFixed(0)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/detail',
-                    arguments: {'symbol': stock.symbol},
-                  ),
+              return EnhancedStockCard(
+                stock: FilteredStockAdapter(stock),
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  '/detail',
+                  arguments: {'symbol': stock.symbol},
                 ),
               );
             },
@@ -904,6 +828,28 @@ class _FilterScreenState extends State<FilterScreen> {
         ],
       ),
     );
+  }
+
+  String _getMarketCapCategory(double marketCap) {
+    if (marketCap >= 200e9) {
+      // $200B+
+      return 'Mega Cap';
+    } else if (marketCap >= 10e9) {
+      // $10B-$200B
+      return 'Large Cap';
+    } else if (marketCap >= 2e9) {
+      // $2B-$10B
+      return 'Mid Cap';
+    } else if (marketCap >= 300e6) {
+      // $300M-$2B
+      return 'Small Cap';
+    } else if (marketCap >= 50e6) {
+      // $50M-$300M
+      return 'Micro Cap';
+    } else {
+      // <$50M
+      return 'Nano Cap';
+    }
   }
 }
 
@@ -914,6 +860,9 @@ class FilteredStock {
   final double price;
   final double changesPercentage;
   final double volume;
+  final double? beta;
+  final String? sector;
+  final double? marketCap;
 
   FilteredStock({
     required this.symbol,
@@ -921,6 +870,9 @@ class FilteredStock {
     required this.price,
     required this.changesPercentage,
     required this.volume,
+    this.beta,
+    this.sector,
+    this.marketCap,
   });
 
   factory FilteredStock.fromJson(Map<String, dynamic> json) {
@@ -930,6 +882,9 @@ class FilteredStock {
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
       changesPercentage: (json['changesPercentage'] as num?)?.toDouble() ?? 0.0,
       volume: (json['volume'] as num?)?.toDouble() ?? 0.0,
+      beta: (json['beta'] as num?)?.toDouble(),
+      sector: json['sector']?.toString(),
+      marketCap: (json['marketCap'] as num?)?.toDouble(),
     );
   }
 }
