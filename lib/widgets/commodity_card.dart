@@ -131,6 +131,7 @@ class _CommodityCardState extends State<CommodityCard> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              const SizedBox(height: 2),
               Text(
                 commodity.formattedChangePercent,
                 style: theme.textTheme.labelSmall?.copyWith(

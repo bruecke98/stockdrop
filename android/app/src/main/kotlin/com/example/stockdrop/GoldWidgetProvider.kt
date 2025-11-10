@@ -21,6 +21,8 @@ import java.util.*
 import kotlin.math.max
 import kotlin.math.min
 
+import com.example.stockdrop.MainActivity
+
 class GoldWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
@@ -52,7 +54,8 @@ private fun updateGoldWidget(
     // Set loading state
     views.setTextViewText(R.id.gold_symbol, "GOLD")
     views.setTextViewText(R.id.gold_price, "Loading...")
-    views.setTextViewText(R.id.gold_change, "--")
+    views.setTextViewText(R.id.gold_change_percent, "--")
+    views.setTextViewText(R.id.gold_change_abs, "")
 
     // Create an Intent to launch MainActivity when clicked
     val intent = Intent(context, MainActivity::class.java)
@@ -98,7 +101,8 @@ private fun fetchGoldData(
                 withContext(Dispatchers.Main) {
                     views.setTextViewText(R.id.gold_symbol, "GOLD")
                     views.setTextViewText(R.id.gold_price, "No API Key")
-                    views.setTextViewText(R.id.gold_change, "")
+                    views.setTextViewText(R.id.gold_change_percent, "")
+                    views.setTextViewText(R.id.gold_change_abs, "")
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 }
                 return@launch
@@ -118,7 +122,7 @@ private fun fetchGoldData(
             } else {
                 // Fallback to demo data if API calls fail
                 withContext(Dispatchers.Main) {
-                    val demoQuote = GoldQuote(2025.50, 1.2)
+                    val demoQuote = GoldQuote(2025.50, 1.2, 24.30)
                     updateWidgetWithGoldData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
                 }
             }
@@ -126,7 +130,7 @@ private fun fetchGoldData(
             Log.e("GoldWidget", "Error fetching gold data: ${e.message}")
             withContext(Dispatchers.Main) {
                 // Show demo data on error
-                val demoQuote = GoldQuote(2025.50, 1.2)
+                val demoQuote = GoldQuote(2025.50, 1.2, 24.30)
                 updateWidgetWithGoldData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
             }
         }
@@ -149,7 +153,8 @@ private fun fetchGoldQuote(apiKey: String): GoldQuote? {
                 val goldData = jsonArray.getJSONObject(0)
                 GoldQuote(
                     price = goldData.getDouble("price"),
-                    changePercent = goldData.getDouble("changesPercentage")
+                    changePercent = goldData.getDouble("changesPercentage"),
+                    change = goldData.getDouble("change")
                 )
             } else null
         } else {
@@ -214,15 +219,21 @@ private fun updateWidgetWithGoldData(
     views.setTextViewText(R.id.gold_symbol, "GOLD")
     views.setTextViewText(R.id.gold_price, "$${String.format("%.2f", quote.price)}")
     
-    val changeText = if (quote.changePercent >= 0) {
-        "+${String.format("%.1f", quote.changePercent)}%"
+    // Split percent and absolute change into separate views
+    val percentText = String.format("%+.2f%%", quote.changePercent)
+    val absText = if (quote.change >= 0) {
+        "+$${String.format("%.2f", quote.change)}"
     } else {
-        "${String.format("%.1f", quote.changePercent)}%"
+        "-$${String.format("%.2f", Math.abs(quote.change))}"
     }
-    views.setTextViewText(R.id.gold_change, changeText)
-    
-    // Set change color - always black as requested
-    views.setTextColor(R.id.gold_change, Color.BLACK)
+
+    views.setTextViewText(R.id.gold_change_percent, percentText)
+    views.setTextViewText(R.id.gold_change_abs, absText)
+
+    // Color: keep black for gold widget values but adjust tint if negative/positive
+    val changeColor = if (quote.change >= 0) Color.parseColor("#006400") else Color.parseColor("#8B0000")
+    views.setTextColor(R.id.gold_change_percent, changeColor)
+    views.setTextColor(R.id.gold_change_abs, changeColor)
     
     // Chart removed - widget is now single height
     
@@ -241,7 +252,8 @@ private fun getApiKey(context: Context): String {
 
 data class GoldQuote(
     val price: Double,
-    val changePercent: Double
+    val changePercent: Double,
+    val change: Double
 )
 
 data class GoldHistoricalPoint(

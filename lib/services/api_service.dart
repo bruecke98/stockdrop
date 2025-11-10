@@ -1140,13 +1140,89 @@ class ApiService {
 
       final List<dynamic> data = json.decode(response.body);
       if (data.isNotEmpty) {
-        final commodityData = Commodity.fromQuoteJson(data.first, type);
+        final quoteData = data.first as Map<String, dynamic>;
 
-        debugPrint(
-          '✅ $type price fetched: ${commodityData.formattedPrice} (${commodityData.formattedChangePercent})',
+        // Try to fetch profile data for yearHigh/yearLow
+        double? yearHigh;
+        double? yearLow;
+        try {
+          final profileUrl = Uri.parse(
+            '$_baseUrl/profile/$symbol?apikey=$_apiKey',
+          );
+          debugPrint('📊 Fetching profile data for $symbol...');
+          final profileResponse = await http.get(profileUrl);
+
+          debugPrint(
+            '📊 Profile response status: ${profileResponse.statusCode}',
+          );
+          if (profileResponse.statusCode == 200) {
+            final List<dynamic> profileData = json.decode(profileResponse.body);
+            debugPrint('📊 Profile data received: ${profileData.length} items');
+            if (profileData.isNotEmpty) {
+              final profile = profileData.first as Map<String, dynamic>;
+              yearHigh = profile['yearHigh']?.toDouble();
+              yearLow = profile['yearLow']?.toDouble();
+              debugPrint('📊 Year data: high=$yearHigh, low=$yearLow');
+            } else {
+              debugPrint('📊 Profile data is empty');
+            }
+          } else {
+            debugPrint('📊 Profile request failed: ${profileResponse.body}');
+          }
+        } catch (e) {
+          debugPrint('⚠️ Could not fetch profile data for $symbol: $e');
+        }
+
+        // If profile data didn't work, try to calculate from historical data
+        if (yearHigh == null || yearLow == null) {
+          try {
+            debugPrint('📈 Calculating 52-week range from historical data...');
+            final historicalData = await getCommodityHistoricalData(
+              type,
+              days: 365,
+            );
+            if (historicalData.isNotEmpty) {
+              yearHigh = historicalData
+                  .map((point) => point.high)
+                  .reduce((a, b) => a > b ? a : b);
+              yearLow = historicalData
+                  .map((point) => point.low)
+                  .reduce((a, b) => a < b ? a : b);
+              debugPrint(
+                '📈 Year data from historical: high=$yearHigh, low=$yearLow',
+              );
+            }
+          } catch (e) {
+            debugPrint(
+              '⚠️ Could not calculate year range from historical data: $e',
+            );
+          }
+        }
+
+        final commodity = Commodity(
+          symbol: quoteData['symbol']?.toString() ?? '',
+          name:
+              quoteData['name']?.toString() ??
+              _getCommodityNameFromSymbol(quoteData['symbol'] ?? ''),
+          price: (quoteData['price'] ?? 0.0).toDouble(),
+          change: (quoteData['change'] ?? 0.0).toDouble(),
+          changePercent: (quoteData['changesPercentage'] ?? 0.0).toDouble(),
+          type: type,
+          currency: 'USD',
+          dayHigh: quoteData['dayHigh']?.toDouble(),
+          dayLow: quoteData['dayLow']?.toDouble(),
+          yearHigh: yearHigh,
+          yearLow: yearLow,
+          open: quoteData['open']?.toDouble(),
+          previousClose: quoteData['previousClose']?.toDouble(),
+          lastUpdated: DateTime.now(),
         );
 
-        return commodityData;
+        debugPrint(
+          '✅ $type price fetched: ${commodity.formattedPrice} (${commodity.formattedChangePercent})',
+        );
+
+        return commodity;
       } else {
         debugPrint('⚠️ No $type price data available');
       }
@@ -1155,6 +1231,151 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Error fetching $type price: $e');
       throw ApiException('Failed to fetch $type price', 0, e.toString());
+    }
+  }
+
+  /// Get index price data using the stable quote endpoint
+  Future<Index?> getIndexPrice(String symbol) async {
+    try {
+      debugPrint('📊 Fetching index $symbol price...');
+
+      final url = Uri.parse('$_baseUrl/quote/$symbol?apikey=$_apiKey');
+      debugPrint('📊 URL: $url');
+
+      final response = await http.get(url);
+      debugPrint('📊 Response status: ${response.statusCode}');
+      debugPrint('📊 Response body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch $symbol index price',
+          response.statusCode,
+          response.body,
+        );
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      debugPrint('📊 Parsed data length: ${data.length}');
+
+      if (data.isNotEmpty) {
+        final quoteData = data.first as Map<String, dynamic>;
+        debugPrint('📊 Quote data keys: ${quoteData.keys.toList()}');
+        debugPrint('📊 Symbol from API: ${quoteData['symbol']}');
+        debugPrint('📊 Price from API: ${quoteData['price']}');
+
+        final index = Index(
+          symbol: quoteData['symbol']?.toString() ?? '',
+          name:
+              quoteData['name']?.toString() ??
+              _getIndexNameFromSymbol(quoteData['symbol'] ?? ''),
+          price: (quoteData['price'] ?? 0.0).toDouble(),
+          change: (quoteData['change'] ?? 0.0).toDouble(),
+          changePercent: (quoteData['changesPercentage'] ?? 0.0).toDouble(),
+          currency: 'USD',
+          dayHigh: quoteData['dayHigh']?.toDouble(),
+          dayLow: quoteData['dayLow']?.toDouble(),
+          yearHigh: quoteData['yearHigh']?.toDouble(),
+          yearLow: quoteData['yearLow']?.toDouble(),
+          open: quoteData['open']?.toDouble(),
+          previousClose: quoteData['previousClose']?.toDouble(),
+          lastUpdated: DateTime.now(),
+        );
+
+        debugPrint(
+          '✅ $symbol index price fetched: ${index.formattedPrice} (${index.formattedChangePercent})',
+        );
+
+        return index;
+      } else {
+        debugPrint('⚠️ No $symbol index price data available');
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('❌ Error fetching $symbol index price: $e');
+      throw ApiException(
+        'Failed to fetch $symbol index price',
+        0,
+        e.toString(),
+      );
+    }
+  }
+
+  /// Get index name from symbol
+  String _getIndexNameFromSymbol(String symbol) {
+    switch (symbol.toUpperCase()) {
+      case '^GSPC':
+        return 'S&P 500';
+      case '^DJI':
+        return 'Dow Jones Industrial Average';
+      case '^STOXX50E':
+        return 'Euro Stoxx 50';
+      case '^IXIC':
+        return 'NASDAQ Composite';
+      case '^RUT':
+        return 'Russell 2000';
+      case '^FTSE':
+        return 'FTSE 100';
+      case '^N225':
+        return 'Nikkei 225';
+      case '^HSI':
+        return 'Hang Seng';
+      case '^VIX':
+        return 'VIX';
+      default:
+        return symbol;
+    }
+  }
+
+  /// Get historical index data for charting
+  Future<List<CommodityHistoricalPoint>> getIndexHistoricalData(
+    String symbol, {
+    int days = 30,
+  }) async {
+    try {
+      debugPrint('📈 Fetching $symbol historical data for $days days...');
+
+      final fromDate = DateTime.now().subtract(Duration(days: days + 5));
+      final toDate = DateTime.now();
+
+      final fromStr =
+          '${fromDate.year}-${fromDate.month.toString().padLeft(2, '0')}-${fromDate.day.toString().padLeft(2, '0')}';
+      final toStr =
+          '${toDate.year}-${toDate.month.toString().padLeft(2, '0')}-${toDate.day.toString().padLeft(2, '0')}';
+
+      final url = Uri.parse(
+        '$_baseUrl/historical-price-full/$symbol?from=$fromStr&to=$toStr&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Failed to fetch $symbol historical data',
+          response.statusCode,
+          response.body,
+        );
+      }
+
+      final Map<String, dynamic> data = json.decode(response.body);
+      final List<dynamic> historical = data['historical'] ?? [];
+
+      final points = historical
+          .take(days)
+          .map((point) => CommodityHistoricalPoint.fromJson(point))
+          .toList()
+          .reversed
+          .toList();
+
+      debugPrint('✅ Fetched ${points.length} $symbol historical data points');
+      return points;
+    } catch (e) {
+      debugPrint('❌ Error fetching $symbol historical data: $e');
+      throw ApiException(
+        'Failed to fetch $symbol historical data',
+        0,
+        e.toString(),
+      );
     }
   }
 
@@ -1187,6 +1408,19 @@ class ApiService {
         return 'BZUSD';
       default:
         throw ArgumentError('Unsupported commodity type: $type');
+    }
+  }
+
+  String _getCommodityNameFromSymbol(String symbol) {
+    switch (symbol.toUpperCase()) {
+      case 'GCUSD':
+        return 'Gold';
+      case 'SIUSD':
+        return 'Silver';
+      case 'BZUSD':
+        return 'Crude Oil';
+      default:
+        return symbol; // fallback to symbol if unknown
     }
   }
 

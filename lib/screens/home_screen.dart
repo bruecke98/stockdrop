@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/commodity_card.dart';
-import '../screens/gold_example_screen.dart';
-import '../screens/silver_example_screen.dart';
-import '../screens/oil_example_screen.dart';
+import '../screens/commodity_screen.dart';
+import '../screens/index_screen.dart';
+import '../models/commodity.dart';
+import '../services/api_service.dart';
 
 /// Home screen for StockDrop app
 /// Displays top stocks with daily losses using Financial Modeling Prep API
@@ -21,10 +22,23 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = false;
   String? _error;
 
+  // Index data for home screen cards
+  Index? _sp500Index;
+  Index? _dowJonesIndex;
+  Index? _euroStoxxIndex;
+  Index? _nasdaqIndex;
+  Index? _russell2000Index;
+  Index? _ftseIndex;
+  Index? _nikkei225Index;
+  Index? _hangSengIndex;
+  Index? _vixIndex;
+  bool _isLoadingIndexes = true;
+
   @override
   void initState() {
     super.initState();
     _fetchStocks();
+    _fetchIndexData();
   }
 
   @override
@@ -48,180 +62,186 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _refreshStocks,
-        child: CustomScrollView(
-          slivers: [
-            // Stock List Header
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.shadow.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.trending_down,
-                      color: theme.colorScheme.error,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Top 10 Worst Performing Stocks',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: CustomScrollView(
+            slivers: [
+              // Stock List Header
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: theme.colorScheme.shadow.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${_stocks.length} stocks',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.trending_down,
+                        color: theme.colorScheme.error,
+                        size: 20,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        'Top 10 Worst Performing Stocks',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${_stocks.length} stocks',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
 
-            // Stock List or Loading/Error States
-            if (_isLoading && _stocks.isEmpty)
-              const SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 200,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              )
-            else if (_error != null && _stocks.isEmpty)
-              SliverToBoxAdapter(child: _buildErrorWidget(theme))
-            else if (_stocks.isEmpty && !_isLoading)
-              SliverToBoxAdapter(child: _buildEmptyWidget(theme))
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final stock = _stocks[index];
-                  return Container(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    child: Card(
-                      child: ListTile(
-                        onTap: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/detail',
-                            arguments: {'symbol': stock.symbol},
-                          );
-                        },
-                        leading: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(7),
-                            child: Image.network(
-                              'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: theme.colorScheme.error.withOpacity(
-                                    0.1,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      stock.symbol
-                                          .substring(0, 2)
-                                          .toUpperCase(),
-                                      style: TextStyle(
-                                        color: theme.colorScheme.error,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
+              // Stock List or Loading/Error States
+              if (_isLoading && _stocks.isEmpty)
+                const SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                )
+              else if (_error != null && _stocks.isEmpty)
+                SliverToBoxAdapter(child: _buildErrorWidget(theme))
+              else if (_stocks.isEmpty && !_isLoading)
+                SliverToBoxAdapter(child: _buildEmptyWidget(theme))
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final stock = _stocks[index];
+                    return Container(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: Card(
+                        child: ListTile(
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              '/detail',
+                              arguments: {'symbol': stock.symbol},
+                            );
+                          },
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(7),
+                              child: Image.network(
+                                'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: theme.colorScheme.error.withOpacity(
+                                      0.1,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        stock.symbol
+                                            .substring(0, 2)
+                                            .toUpperCase(),
+                                        style: TextStyle(
+                                          color: theme.colorScheme.error,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              },
+                                  );
+                                },
+                              ),
                             ),
                           ),
-                        ),
-                        title: Text(
-                          stock.symbol,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                          title: Text(
+                            stock.symbol,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              stock.name,
-                              style: theme.textTheme.bodyMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  'Vol: ${_formatVolume(stock.volume)}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                stock.name,
+                                style: theme.textTheme.bodyMedium,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Vol: ${_formatVolume(stock.volume)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '\$${stock.price.toStringAsFixed(2)}',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
+                                ],
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.error,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '${stock.changesPercentage.toStringAsFixed(1)}%',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onError,
+                            ],
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '\$${stock.price.toStringAsFixed(2)}',
+                                style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                          ],
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.error,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${stock.changesPercentage.toStringAsFixed(1)}%',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onError,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }, childCount: _stocks.length),
-              ),
+                    );
+                  }, childCount: _stocks.length),
+                ),
 
-            // Commodities Section
-            SliverToBoxAdapter(child: _buildCommoditiesSection(theme)),
-          ],
+              // Commodities Section
+              SliverToBoxAdapter(child: _buildCommoditiesSection(theme)),
+
+              // Indexes Section
+              SliverToBoxAdapter(child: _buildIndexesSection(theme)),
+            ],
+          ),
         ),
       ),
     );
@@ -256,7 +276,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const GoldExampleScreen(),
+                      builder: (context) => const CommodityScreen(
+                        commodityName: 'Gold',
+                        commoditySymbol: 'GCUSD',
+                        themeColor: Colors.amber,
+                        description:
+                            'Track gold commodity prices (GCUSD) with real-time data and historical charts.',
+                        marketInfo: 'Gold/USD pair\nCommodity tracking',
+                      ),
                     ),
                   );
                 },
@@ -300,7 +327,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const GoldExampleScreen(),
+                        builder: (context) => const CommodityScreen(
+                          commodityName: 'Gold',
+                          commoditySymbol: 'GCUSD',
+                          themeColor: Colors.amber,
+                          description:
+                              'Track gold commodity prices (GCUSD) with real-time data and historical charts.',
+                          marketInfo: 'Gold/USD pair\nCommodity tracking',
+                        ),
                       ),
                     );
                   },
@@ -330,7 +364,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const SilverExampleScreen(),
+                        builder: (context) => const CommodityScreen(
+                          commodityName: 'Silver',
+                          commoditySymbol: 'SIUSD',
+                          themeColor: Colors.grey,
+                          description:
+                              'Track silver commodity prices (SIUSD) with real-time data and historical charts.',
+                          marketInfo: 'Silver/USD pair\nCommodity tracking',
+                        ),
                       ),
                     );
                   },
@@ -360,7 +401,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const OilExampleScreen(),
+                        builder: (context) => const CommodityScreen(
+                          commodityName: 'Oil',
+                          commoditySymbol: 'BZUSD',
+                          themeColor: Colors.black,
+                          description:
+                              'Track crude oil commodity prices (BZUSD) with real-time data and historical charts.',
+                          marketInfo: 'Oil/USD pair\nCommodity tracking',
+                        ),
                       ),
                     );
                   },
@@ -370,6 +418,447 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Build the indexes section with S&P 500, Dow Jones, and Euro Stoxx 50
+  Widget _buildIndexesSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Indexes Heading
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.show_chart,
+                color: theme.colorScheme.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Market Indexes',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const IndexScreen(
+                        indexName: 'S&P 500',
+                        indexSymbol: '^GSPC',
+                        themeColor: Colors.blue,
+                        description:
+                            'Track the S&P 500 index (^GSPC) with real-time data and historical charts.',
+                        marketInfo: 'S&P 500 Index\nLarge-cap stocks',
+                      ),
+                    ),
+                  );
+                },
+                child: Text(
+                  'View Details',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Vertically Stacked Index Cards
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            children: [
+              // S&P 500 Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'S&P 500',
+                  index: _sp500Index,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'S&P 500',
+                          indexSymbol: '^GSPC',
+                          themeColor: Colors.blue,
+                          description:
+                              'Track the S&P 500 index (^GSPC) with real-time data and historical charts.',
+                          marketInfo: 'S&P 500 Index\nLarge-cap stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Dow Jones Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'Dow Jones',
+                  index: _dowJonesIndex,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'Dow Jones',
+                          indexSymbol: '^DJI',
+                          themeColor: Colors.green,
+                          description:
+                              'Track the Dow Jones Industrial Average (^DJI) with real-time data and historical charts.',
+                          marketInfo: 'Dow Jones Index\nIndustrial stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Euro Stoxx 50 Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'Euro Stoxx 50',
+                  index: _euroStoxxIndex,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'Euro Stoxx 50',
+                          indexSymbol: '^STOXX50E',
+                          themeColor: Colors.orange,
+                          description:
+                              'Track the Euro Stoxx 50 index (^STOXX50E) with real-time data and historical charts.',
+                          marketInfo:
+                              'Euro Stoxx 50 Index\nEuropean blue-chip stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // NASDAQ Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'NASDAQ',
+                  index: _nasdaqIndex,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'NASDAQ Composite',
+                          indexSymbol: '^IXIC',
+                          themeColor: Colors.purple,
+                          description:
+                              'Track the NASDAQ Composite index (^IXIC) with real-time data and historical charts.',
+                          marketInfo: 'NASDAQ Composite\nTechnology stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Russell 2000 Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'Russell 2000',
+                  index: _russell2000Index,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'Russell 2000',
+                          indexSymbol: '^RUT',
+                          themeColor: Colors.teal,
+                          description:
+                              'Track the Russell 2000 index (^RUT) with real-time data and historical charts.',
+                          marketInfo: 'Russell 2000\nSmall-cap stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // FTSE 100 Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'FTSE 100',
+                  index: _ftseIndex,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'FTSE 100',
+                          indexSymbol: '^FTSE',
+                          themeColor: Colors.indigo,
+                          description:
+                              'Track the FTSE 100 index (^FTSE) with real-time data and historical charts.',
+                          marketInfo: 'FTSE 100\nUK blue-chip stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Nikkei 225 Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'Nikkei 225',
+                  index: _nikkei225Index,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'Nikkei 225',
+                          indexSymbol: '^N225',
+                          themeColor: Colors.red,
+                          description:
+                              'Track the Nikkei 225 index (^N225) with real-time data and historical charts.',
+                          marketInfo: 'Nikkei 225\nJapanese stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Hang Seng Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'Hang Seng',
+                  index: _hangSengIndex,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'Hang Seng',
+                          indexSymbol: '^HSI',
+                          themeColor: Colors.amber,
+                          description:
+                              'Track the Hang Seng index (^HSI) with real-time data and historical charts.',
+                          marketInfo: 'Hang Seng Index\nHong Kong stocks',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // VIX Card
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                child: _buildIndexCard(
+                  theme: theme,
+                  title: 'VIX',
+                  index: _vixIndex,
+                  isLoading: _isLoadingIndexes,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const IndexScreen(
+                          indexName: 'VIX',
+                          indexSymbol: '^VIX',
+                          themeColor: Colors.grey,
+                          description:
+                              'Track the CBOE Volatility Index (^VIX) with real-time data and historical charts.',
+                          marketInfo: 'VIX\nMarket volatility',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIndexCard({
+    required ThemeData theme,
+    required String title,
+    required Index? index,
+    required bool isLoading,
+    required VoidCallback onTap,
+  }) {
+    // Determine border color based on change
+    Color borderColor;
+    if (index == null || isLoading) {
+      borderColor = Colors.blue.shade700;
+    } else if (index.changePercent > 0) {
+      borderColor = Colors.green.shade700;
+    } else if (index.changePercent < 0) {
+      borderColor = Colors.red.shade700;
+    } else {
+      borderColor = Colors.blue.shade700;
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: borderColor, width: 2),
+      ),
+      color: Colors.black,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              // Index name on the left
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+
+              // Price and changes on the right
+              if (isLoading)
+                const SizedBox(
+                  width: 60,
+                  height: 30,
+                  child: Center(
+                    child: SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                )
+              else if (index != null)
+                Row(
+                  children: [
+                    // Price
+                    Text(
+                      index.formattedPrice,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Change badges
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Percentage change badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: index.changePercent >= 0
+                                ? Colors.green.shade800
+                                : Colors.red.shade800,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            index.formattedChangePercent,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        // Absolute change badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: index.change >= 0
+                                ? Colors.green.shade800
+                                : Colors.red.shade800,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            index.formattedChange,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                )
+              else
+                Container(
+                  width: 60,
+                  height: 30,
+                  alignment: Alignment.center,
+                  child: Text(
+                    'No Data',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontSize: 10,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -642,6 +1131,49 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refreshStocks() async {
     await _fetchStocks();
+  }
+
+  Future<void> _fetchIndexData() async {
+    setState(() {
+      _isLoadingIndexes = true;
+    });
+
+    try {
+      final apiService = ApiService();
+
+      // Fetch all nine indexes concurrently
+      final results = await Future.wait([
+        apiService.getIndexPrice('^GSPC'), // S&P 500
+        apiService.getIndexPrice('^DJI'), // Dow Jones
+        apiService.getIndexPrice('^STOXX50E'), // Euro Stoxx 50
+        apiService.getIndexPrice('^IXIC'), // NASDAQ
+        apiService.getIndexPrice('^RUT'), // Russell 2000
+        apiService.getIndexPrice('^FTSE'), // FTSE 100
+        apiService.getIndexPrice('^N225'), // Nikkei 225
+        apiService.getIndexPrice('^HSI'), // Hang Seng
+        apiService.getIndexPrice('^VIX'), // VIX
+      ]);
+
+      setState(() {
+        _sp500Index = results[0];
+        _dowJonesIndex = results[1];
+        _euroStoxxIndex = results[2];
+        _nasdaqIndex = results[3];
+        _russell2000Index = results[4];
+        _ftseIndex = results[5];
+        _nikkei225Index = results[6];
+        _hangSengIndex = results[7];
+        _vixIndex = results[8];
+        _isLoadingIndexes = false;
+      });
+
+      print('DEBUG: Successfully loaded index data');
+    } catch (e) {
+      print('DEBUG: Error fetching index data: $e');
+      setState(() {
+        _isLoadingIndexes = false;
+      });
+    }
   }
 
   String _formatVolume(double volume) {

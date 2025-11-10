@@ -18,6 +18,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
+
+import com.example.stockdrop.MainActivity
 import kotlin.math.max
 import kotlin.math.min
 
@@ -52,7 +54,7 @@ private fun updateSilverWidget(
     // Set loading state
     views.setTextViewText(R.id.silver_symbol, "SILVER")
     views.setTextViewText(R.id.silver_price, "Loading...")
-    views.setTextViewText(R.id.silver_change, "--")
+    views.setTextViewText(R.id.silver_change_percent, "--")
 
     // Create an Intent to launch MainActivity when clicked
     val intent = Intent(context, MainActivity::class.java)
@@ -98,7 +100,7 @@ private fun fetchSilverData(
                 withContext(Dispatchers.Main) {
                     views.setTextViewText(R.id.silver_symbol, "SILVER")
                     views.setTextViewText(R.id.silver_price, "No API Key")
-                    views.setTextViewText(R.id.silver_change, "")
+                    views.setTextViewText(R.id.silver_change_percent, "")
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 }
                 return@launch
@@ -118,7 +120,7 @@ private fun fetchSilverData(
             } else {
                 // Fallback to demo data if API calls fail
                 withContext(Dispatchers.Main) {
-                    val demoQuote = SilverQuote(24.75, -0.8)
+                    val demoQuote = SilverQuote(24.75, -0.8, -0.20)
                     updateWidgetWithSilverData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
                 }
             }
@@ -126,7 +128,7 @@ private fun fetchSilverData(
             Log.e("SilverWidget", "Error fetching silver data: ${e.message}")
             withContext(Dispatchers.Main) {
                 // Show demo data on error
-                val demoQuote = SilverQuote(24.75, -0.8)
+                val demoQuote = SilverQuote(24.75, -0.8, -0.20)
                 updateWidgetWithSilverData(appWidgetManager, appWidgetId, views, demoQuote, emptyList())
             }
         }
@@ -149,7 +151,8 @@ private fun fetchSilverQuote(apiKey: String): SilverQuote? {
                 val silverData = jsonArray.getJSONObject(0)
                 SilverQuote(
                     price = silverData.getDouble("price"),
-                    changePercent = silverData.getDouble("changesPercentage")
+                    changePercent = silverData.getDouble("changesPercentage"),
+                    change = silverData.getDouble("change")
                 )
             } else null
         } else {
@@ -214,15 +217,20 @@ private fun updateWidgetWithSilverData(
     views.setTextViewText(R.id.silver_symbol, "SILVER")
     views.setTextViewText(R.id.silver_price, "$${String.format("%.2f", quote.price)}")
     
-    val changeText = if (quote.changePercent >= 0) {
-        "+${String.format("%.1f", quote.changePercent)}%"
+    // Percent above absolute change
+    val percentText = String.format("%+.2f%%", quote.changePercent)
+    val absText = if (quote.change >= 0) {
+        "+$${String.format("%.2f", quote.change)}"
     } else {
-        "${String.format("%.1f", quote.changePercent)}%"
+        "-$${String.format("%.2f", Math.abs(quote.change))}"
     }
-    views.setTextViewText(R.id.silver_change, changeText)
-    
-    // Set change color - always black as requested
-    views.setTextColor(R.id.silver_change, Color.BLACK)
+    views.setTextViewText(R.id.silver_change_percent, percentText)
+    views.setTextViewText(R.id.silver_change_abs, absText)
+
+    // Color: green for up, red for down
+    val changeColor = if (quote.change >= 0) Color.parseColor("#006400") else Color.parseColor("#B00020")
+    views.setTextColor(R.id.silver_change_percent, changeColor)
+    views.setTextColor(R.id.silver_change_abs, changeColor)
     
     // Chart removed - widget is now single height
     
@@ -241,7 +249,8 @@ private fun getApiKey(context: Context): String {
 
 data class SilverQuote(
     val price: Double,
-    val changePercent: Double
+    val changePercent: Double,
+    val change: Double
 )
 
 data class SilverHistoricalPoint(

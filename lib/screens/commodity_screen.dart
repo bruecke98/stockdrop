@@ -1,53 +1,66 @@
 import 'package:flutter/material.dart';
-import '../widgets/gold_card.dart';
-import '../widgets/gold_chart_widget.dart';
 import '../models/commodity.dart';
 import '../services/api_service.dart';
+import '../widgets/commodity_card.dart';
+import '../widgets/chart_widget.dart';
 
-/// Example screen showcasing the Gold Card and Gold Chart widgets
-///
-/// This demonstrates how to integrate gold commodity tracking in StockDrop app:
-/// - Gold price card display
-/// - Interactive gold price charts
-/// - Different layout options and configurations
-/// - Error handling and loading states
-class GoldExampleScreen extends StatefulWidget {
-  const GoldExampleScreen({super.key});
+/// Generic commodity screen that can display different commodities
+/// Supports gold, oil, and silver with configurable parameters
+class CommodityScreen extends StatefulWidget {
+  final String commodityName;
+  final String commoditySymbol;
+  final Color themeColor;
+  final String description;
+  final String marketInfo;
+
+  const CommodityScreen({
+    super.key,
+    required this.commodityName,
+    required this.commoditySymbol,
+    required this.themeColor,
+    required this.description,
+    required this.marketInfo,
+  });
 
   @override
-  State<GoldExampleScreen> createState() => _GoldExampleScreenState();
+  State<CommodityScreen> createState() => _CommodityScreenState();
 }
 
-class _GoldExampleScreenState extends State<GoldExampleScreen> {
+class _CommodityScreenState extends State<CommodityScreen> {
   bool _showCompactCards = false;
   final ApiService _apiService = ApiService();
-  Commodity? _goldCommodity;
+  Commodity? _commodity;
   bool _isLoadingCommodity = true;
-  String? _commodityError;
 
   @override
   void initState() {
     super.initState();
-    _fetchGoldCommodity();
+    _fetchCommodityData();
   }
 
-  Future<void> _fetchGoldCommodity() async {
+  Future<void> _fetchCommodityData() async {
     try {
       setState(() {
         _isLoadingCommodity = true;
-        _commodityError = null;
       });
 
-      final commodity = await _apiService.getCommodityPrice('gold');
-      setState(() {
-        _goldCommodity = commodity;
-        _isLoadingCommodity = false;
-      });
+      final commodity = await _apiService.getCommodityPrice(
+        widget.commodityName.toLowerCase(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _commodity = commodity;
+          _isLoadingCommodity = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _commodityError = e.toString();
-        _isLoadingCommodity = false;
-      });
+      debugPrint('Error fetching commodity data: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingCommodity = false;
+        });
+      }
     }
   }
 
@@ -57,7 +70,7 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gold Commodity Tracking'),
+        title: Text('${widget.commodityName} Commodity Tracking'),
         backgroundColor: theme.colorScheme.surface,
         actions: [
           IconButton(
@@ -88,14 +101,14 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Gold Market Overview',
+                    '${widget.commodityName} Market Overview',
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Track gold commodity prices (GCUSD) with real-time data and historical charts.',
+                    widget.description,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.7),
                     ),
@@ -104,19 +117,22 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
               ),
             ),
 
-            // Gold price card section
-            _buildGoldCardSection(theme),
+            // Commodity price card section
+            _buildCommodityCardSection(theme),
+            const SizedBox(height: 24),
+
+            // Commodity chart section
+            _buildCommodityChartSection(theme),
 
             const SizedBox(height: 24),
 
-            // Gold chart section
-            _buildGoldChartSection(theme),
+            // Year range visualization
+            _buildYearRangeCard(theme),
 
             const SizedBox(height: 24),
 
-            // Multiple cards grid (for comparison or multiple timeframes)
-            _buildMultipleCardsSection(theme),
-
+            // Multiple cards section
+            // _buildMultipleCardsSection(theme),
             const SizedBox(height: 24),
           ],
         ),
@@ -124,15 +140,15 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
     );
   }
 
-  /// Build the main gold card section
-  Widget _buildGoldCardSection(ThemeData theme) {
+  /// Build the main commodity card section
+  Widget _buildCommodityCardSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Current Gold Price',
+            'Current ${widget.commodityName} Price',
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -140,39 +156,18 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
         ),
         const SizedBox(height: 8),
 
-        // Main gold card
-        GoldCard(
+        // Main commodity card (generic)
+        CommodityCard(
+          commodityType: widget.commodityName.toLowerCase(),
           isCompact: _showCompactCards,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Navigate to detailed gold analysis'),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          },
+          margin: const EdgeInsets.symmetric(horizontal: 16),
         ),
-
-        // Show skeleton for comparison in debug mode
-        if (!_showCompactCards) ...[
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Loading State Example:',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.6),
-              ),
-            ),
-          ),
-          const GoldCardSkeleton(),
-        ],
       ],
     );
   }
 
-  /// Build the gold chart section
-  Widget _buildGoldChartSection(ThemeData theme) {
+  /// Build the commodity chart section
+  Widget _buildCommodityChartSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -187,18 +182,20 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
         ),
         const SizedBox(height: 8),
 
-        // Main chart
-        const GoldChartWidget(
+        // Main chart - generic ChartWidget using the commodity symbol
+        ChartWidget(
+          symbol: widget.commoditySymbol,
           height: 300,
-          showPeriodSelector: true,
-          initialPeriod: '1month',
+          showVolume: false,
+          initialPeriod: '1M',
+          lineColor: widget.themeColor,
         ),
       ],
     );
   }
 
   /// Build multiple cards section for comparison
-  Widget _buildMultipleCardsSection(ThemeData theme) {
+  /*Widget _buildMultipleCardsSection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -219,40 +216,47 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Year Range card - showing 52-week high/low range
-              _buildYearRangeCard(theme),
+              // Year Range Visualization
+              // _buildYearRangeCard(theme),
+
+              const SizedBox(height: 12),
 
               // Info card
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.info_outline,
-                        size: 32,
-                        color: Colors.amber,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 32,
+                            color: widget.themeColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Market Info',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Market Info',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Gold/USD pair\nCommodity tracking',
+                        widget.marketInfo,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface.withOpacity(0.7),
                         ),
-                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
               ),
+
+              const SizedBox(height: 12),
 
               // Action card
               Card(
@@ -268,28 +272,33 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.notifications_outlined,
                           size: 32,
-                          color: Colors.amber,
+                          color: widget.themeColor,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Set Alerts',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Price notifications',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                          textAlign: TextAlign.center,
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Set Alerts',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Price notifications',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(
+                                  0.7,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -301,11 +310,20 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
         ),
       ],
     );
-  }
-
-  /// Build the year range card showing 52-week high/low
+  }*/
   Widget _buildYearRangeCard(ThemeData theme) {
-    if (_isLoadingCommodity) {
+    if (_commodity != null &&
+        _commodity!.yearHigh != null &&
+        _commodity!.yearLow != null) {
+      return _buildYearRangeIndicator(
+        context,
+        '52-Week Range',
+        _commodity!.price,
+        _commodity!.yearLow!,
+        _commodity!.yearHigh!,
+        theme,
+      );
+    } else if (_isLoadingCommodity) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -323,9 +341,8 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
           ),
         ),
       );
-    }
-
-    if (_commodityError != null || _goldCommodity == null) {
+    } else {
+      // Show debug info when data is not available
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -340,9 +357,11 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
               const SizedBox(height: 12),
               Center(
                 child: Text(
-                  'Unable to load range data',
+                  _commodity != null
+                      ? 'Year data: High=${_commodity!.yearHigh}, Low=${_commodity!.yearLow}'
+                      : 'No commodity data loaded',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -352,18 +371,8 @@ class _GoldExampleScreenState extends State<GoldExampleScreen> {
         ),
       );
     }
-
-    return _buildYearRangeIndicator(
-      context,
-      '52-Week Range',
-      _goldCommodity!.price,
-      _goldCommodity!.yearLow ?? _goldCommodity!.price * 0.8,
-      _goldCommodity!.yearHigh ?? _goldCommodity!.price * 1.2,
-      theme,
-    );
   }
 
-  /// Build a range indicator widget for year high/low visualization
   Widget _buildYearRangeIndicator(
     BuildContext context,
     String title,

@@ -985,7 +985,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   return PieChartSectionData(
                     value: product.value,
                     title: '${percentage.toStringAsFixed(1)}%',
-                    radius: 80,
+                    radius: 60,
                     titleStyle: theme.textTheme.bodySmall?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -4004,6 +4004,18 @@ class _DetailScreenState extends State<DetailScreen> {
             'Predicts bankruptcy risk. >3.0 = Safe, 1.8-3.0 = Grey Zone, <1.8 = Distress',
             _buildAltmanZScoreBreakdown(theme),
           ),
+          const SizedBox(height: 16),
+
+          // Piotroski F-Score
+          _buildScoreCard(
+            'Piotroski F-Score',
+            _financialScores!.piotroskiScore?.toString() ?? 'N/A',
+            _financialScores!.getPiotroskiScoreInterpretation(),
+            _getScoreColor(_financialScores!.getPiotroskiScoreColor()),
+            theme,
+            'Fundamental analysis score. 9 = Strong, 5-8 = Medium, 0-4 = Weak',
+            _buildPiotroskiScoreBreakdown(theme),
+          ),
         ],
       ),
     );
@@ -4455,6 +4467,129 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Widget _buildPiotroskiScoreBreakdown(ThemeData theme) {
+    final score = _financialScores!.piotroskiScore ?? 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'F-Score evaluates 9 fundamental signals of financial strength',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.primary,
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Score interpretation
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Score Interpretation:',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildPiotroskiScoreZone(
+                '9',
+                'Excellent',
+                'Strong financial health across all metrics',
+                score == 9 ? Colors.green : Colors.grey,
+                theme,
+              ),
+              const SizedBox(height: 4),
+              _buildPiotroskiScoreZone(
+                '7-8',
+                'Good',
+                'Solid fundamentals with minor concerns',
+                score >= 7 && score <= 8 ? Colors.lightGreen : Colors.grey,
+                theme,
+              ),
+              const SizedBox(height: 4),
+              _buildPiotroskiScoreZone(
+                '4-6',
+                'Fair',
+                'Mixed signals, requires monitoring',
+                score >= 4 && score <= 6 ? Colors.orange : Colors.grey,
+                theme,
+              ),
+              const SizedBox(height: 4),
+              _buildPiotroskiScoreZone(
+                '0-3',
+                'Weak',
+                'Significant fundamental concerns',
+                score <= 3 ? Colors.red : Colors.grey,
+                theme,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPiotroskiScoreZone(
+    String range,
+    String quality,
+    String description,
+    Color color,
+    ThemeData theme,
+  ) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: '$range: ',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 11,
+                  ),
+                ),
+                TextSpan(
+                  text: '$quality - $description',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSectorComparisonSection(ThemeData theme) {
     if (_sectorPerformance.isEmpty) {
       return const SizedBox.shrink();
@@ -4619,6 +4754,96 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _buildInsiderTradingChart(ThemeData theme) {
+    return FutureBuilder<Map<String, double>>(
+      future: _fetchHistoricalPricesForInsiderDates(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Container(
+            height: 200,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData) {
+          // Fallback to current price if historical data fails
+          return _buildInsiderTradingChartWithPrices(theme, {});
+        }
+
+        return _buildInsiderTradingChartWithPrices(theme, snapshot.data!);
+      },
+    );
+  }
+
+  Future<Map<String, double>> _fetchHistoricalPricesForInsiderDates() async {
+    final recentTrades = _insiderTrading.take(50).toList();
+    if (recentTrades.isEmpty || _stockSymbol == null) {
+      return {};
+    }
+
+    // Get unique dates from insider trading
+    final dates =
+        recentTrades.map((trade) => trade.transactionDate).toSet().toList()
+          ..sort();
+
+    if (dates.isEmpty) return {};
+
+    try {
+      // Fetch historical data from FMP API
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null) return {};
+
+      final url =
+          'https://financialmodelingprep.com/api/v3/historical-price-full/$_stockSymbol?apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map && data.containsKey('historical')) {
+          final historicalData = data['historical'] as List;
+
+          // Create a map of date -> price
+          final priceMap = <String, double>{};
+          for (final item in historicalData) {
+            final date = item['date'] as String?;
+            final close = item['close'];
+            if (date != null && close != null) {
+              priceMap[date] = (close as num).toDouble();
+            }
+          }
+
+          // Match insider trading dates to historical prices
+          final result = <String, double>{};
+          for (final tradeDate in dates) {
+            // Try exact match first
+            if (priceMap.containsKey(tradeDate)) {
+              result[tradeDate] = priceMap[tradeDate]!;
+            } else {
+              // If no exact match, use current price as fallback
+              result[tradeDate] = _stockDetail?.price ?? 0.0;
+            }
+          }
+
+          return result;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching historical prices: $e');
+    }
+
+    // Fallback: use current price for all dates
+    final currentPrice = _stockDetail?.price ?? 0.0;
+    return {for (final date in dates) date: currentPrice};
+  }
+
+  Widget _buildInsiderTradingChartWithPrices(
+    ThemeData theme,
+    Map<String, double> priceData,
+  ) {
     // Get the last 30 days of insider trading activity
     final recentTrades = _insiderTrading.take(50).toList();
 
@@ -4636,22 +4861,6 @@ class _DetailScreenState extends State<DetailScreen> {
     // Sort dates chronologically
     final sortedDates = tradesByDate.keys.toList()..sort();
 
-    // Calculate net activity per date (buys - sells)
-    final netActivity = <String, double>{};
-    for (final date in sortedDates) {
-      final trades = tradesByDate[date]!;
-      double netShares = 0;
-      for (final trade in trades) {
-        final shares = trade.securitiesTransacted.toDouble();
-        if (trade.isBuy) {
-          netShares += shares;
-        } else if (trade.isSell) {
-          netShares -= shares;
-        }
-      }
-      netActivity[date] = netShares;
-    }
-
     return Container(
       height: 200,
       padding: const EdgeInsets.all(16),
@@ -4663,7 +4872,7 @@ class _DetailScreenState extends State<DetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Insider Activity Trend',
+            'Stock Price During Insider Activity',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.primary,
@@ -4676,7 +4885,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: true,
-                  horizontalInterval: 10000,
+                  horizontalInterval: 10,
                   verticalInterval: 1.0,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
@@ -4732,12 +4941,11 @@ class _DetailScreenState extends State<DetailScreen> {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      interval: 20000,
+                      interval: 20,
                       reservedSize: 50,
                       getTitlesWidget: (value, meta) {
-                        final formatted = (value / 1000).toStringAsFixed(0);
                         return Text(
-                          '${formatted}K',
+                          '\$${value.toStringAsFixed(0)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                             fontSize: 9,
@@ -4763,7 +4971,9 @@ class _DetailScreenState extends State<DetailScreen> {
                       sortedDates.length,
                       (index) => FlSpot(
                         index.toDouble(),
-                        netActivity[sortedDates[index]] ?? 0.0,
+                        priceData[sortedDates[index]] ??
+                            _stockDetail?.price ??
+                            0.0,
                       ),
                     ),
                     isCurved: true,
@@ -4773,15 +4983,9 @@ class _DetailScreenState extends State<DetailScreen> {
                     dotData: FlDotData(
                       show: true,
                       getDotPainter: (spot, percent, barData, index) {
-                        final netValue = spot.y;
-                        final color = netValue > 0
-                            ? Colors.green
-                            : netValue < 0
-                            ? Colors.red
-                            : Colors.grey;
                         return FlDotCirclePainter(
                           radius: 4,
-                          color: color,
+                          color: theme.colorScheme.primary,
                           strokeWidth: 2,
                           strokeColor: theme.colorScheme.surface,
                         );
@@ -4800,46 +5004,12 @@ class _DetailScreenState extends State<DetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Net Buying',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Net Selling',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
+              Text(
+                'Historical stock price on insider trading dates',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
               ),
             ],
           ),

@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 /// Commodity model class for StockDrop app
 /// Represents commodity price data (gold, silver, oil) with current price and market information
 class Commodity {
@@ -9,6 +11,8 @@ class Commodity {
   final String currency;
   final double? dayHigh;
   final double? dayLow;
+  final double? yearHigh;
+  final double? yearLow;
   final double? open;
   final double? previousClose;
   final DateTime? lastUpdated;
@@ -24,6 +28,8 @@ class Commodity {
     this.currency = 'USD',
     this.dayHigh,
     this.dayLow,
+    this.yearHigh,
+    this.yearLow,
     this.open,
     this.previousClose,
     this.lastUpdated,
@@ -31,19 +37,34 @@ class Commodity {
 
   /// Create Commodity from JSON (from FMP API quote endpoint)
   factory Commodity.fromQuoteJson(Map<String, dynamic> json, String type) {
+    final price = (json['price'] ?? 0.0).toDouble();
+    final change = (json['change'] ?? 0.0).toDouble();
+    final previousClose = json['previousClose']?.toDouble();
+
+    // Try to get changePercent from API, otherwise calculate it
+    final apiChangePercent =
+        (json['changePercentage'] ?? json['changesPercentage'])?.toDouble();
+    final changePercent =
+        apiChangePercent ??
+        (previousClose != null && previousClose != 0
+            ? (price - previousClose) / previousClose * 100
+            : 0.0);
+
     return Commodity(
       symbol: json['symbol']?.toString() ?? '',
       name:
           json['name']?.toString() ?? _getNameFromSymbol(json['symbol'] ?? ''),
-      price: (json['price'] ?? 0.0).toDouble(),
-      change: (json['change'] ?? 0.0).toDouble(),
-      changePercent: (json['changesPercentage'] ?? 0.0).toDouble(),
+      price: price,
+      change: change,
+      changePercent: changePercent,
       type: type,
       currency: 'USD',
       dayHigh: json['dayHigh']?.toDouble(),
       dayLow: json['dayLow']?.toDouble(),
+      yearHigh: null, // Not available in quote endpoint
+      yearLow: null, // Not available in quote endpoint
       open: json['open']?.toDouble(),
-      previousClose: json['previousClose']?.toDouble(),
+      previousClose: previousClose,
       lastUpdated: DateTime.now(),
     );
   }
@@ -188,6 +209,181 @@ class Commodity {
   @override
   String toString() {
     return 'Commodity($name: $formattedPrice $formattedChangePercent)';
+  }
+}
+
+/// Index model class for StockDrop app
+/// Represents stock market index data (S&P 500, Dow Jones, Euro Stoxx 50)
+class Index {
+  final String symbol;
+  final String name;
+  final double price;
+  final double change;
+  final double changePercent;
+  final String currency;
+  final double? dayHigh;
+  final double? dayLow;
+  final double? yearHigh;
+  final double? yearLow;
+  final double? open;
+  final double? previousClose;
+  final DateTime? lastUpdated;
+
+  Index({
+    required this.symbol,
+    required this.name,
+    required this.price,
+    required this.change,
+    required this.changePercent,
+    this.currency = 'USD',
+    this.dayHigh,
+    this.dayLow,
+    this.yearHigh,
+    this.yearLow,
+    this.open,
+    this.previousClose,
+    this.lastUpdated,
+  });
+
+  /// Create Index from JSON (from FMP API quote endpoint)
+  factory Index.fromQuoteJson(Map<String, dynamic> json) {
+    final price = (json['price'] ?? 0.0).toDouble();
+    final change = (json['change'] ?? 0.0).toDouble();
+    final previousClose = json['previousClose']?.toDouble();
+
+    // Try to get changePercent from API, otherwise calculate it
+    final apiChangePercent =
+        (json['changePercentage'] ?? json['changesPercentage'])?.toDouble();
+    final changePercent =
+        apiChangePercent ??
+        (previousClose != null && previousClose != 0
+            ? (price - previousClose) / previousClose * 100
+            : 0.0);
+
+    return Index(
+      symbol: json['symbol']?.toString() ?? '',
+      name:
+          json['name']?.toString() ?? _getNameFromSymbol(json['symbol'] ?? ''),
+      price: price,
+      change: change,
+      changePercent: changePercent,
+      currency: 'USD',
+      dayHigh: json['dayHigh']?.toDouble(),
+      dayLow: json['dayLow']?.toDouble(),
+      yearHigh: null, // Not available in quote endpoint
+      yearLow: null, // Not available in quote endpoint
+      open: json['open']?.toDouble(),
+      previousClose: previousClose,
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  /// Get index name from symbol
+  static String _getNameFromSymbol(String symbol) {
+    switch (symbol.toUpperCase()) {
+      case '^GSPC':
+        return 'S&P 500';
+      case '^DJI':
+        return 'Dow Jones Industrial Average';
+      case '^STOXX50E':
+        return 'Euro Stoxx 50';
+      case '^IXIC':
+        return 'NASDAQ Composite';
+      case '^RUT':
+        return 'Russell 2000';
+      case '^FTSE':
+        return 'FTSE 100';
+      case '^N225':
+        return 'Nikkei 225';
+      case '^HSI':
+        return 'Hang Seng';
+      case '^VIX':
+        return 'VIX';
+      default:
+        return symbol;
+    }
+  }
+
+  /// Get formatted price with proper currency symbol
+  String get formattedPrice {
+    return price.toStringAsFixed(0);
+  }
+
+  /// Get formatted change with + or - prefix
+  String get formattedChange {
+    final sign = change >= 0 ? '+' : '';
+    return '$sign${change.toStringAsFixed(2)}';
+  }
+
+  /// Get formatted change percentage with + or - prefix
+  String get formattedChangePercent {
+    final sign = changePercent >= 0 ? '+' : '';
+    return '$sign${changePercent.toStringAsFixed(2)}%';
+  }
+
+  /// Check if index is gaining (positive change)
+  bool get isGaining => changePercent >= 0;
+
+  /// Get trend direction
+  String get trend {
+    if (changePercent > 0) return 'up';
+    if (changePercent < 0) return 'down';
+    return 'neutral';
+  }
+
+  /// Get change color (green for positive, red for negative)
+  Color get changeColor {
+    return changePercent >= 0 ? Colors.green : Colors.red;
+  }
+
+  /// Get appropriate icon based on index symbol
+  IconData get icon {
+    switch (symbol.toUpperCase()) {
+      case '^GSPC':
+        return Icons.show_chart;
+      case '^DJI':
+        return Icons.bar_chart;
+      case '^STOXX50E':
+        return Icons.euro;
+      default:
+        return Icons.trending_up;
+    }
+  }
+
+  /// Get display color based on index symbol
+  Color get primaryColor {
+    switch (symbol.toUpperCase()) {
+      case '^GSPC':
+        return Colors.blue;
+      case '^DJI':
+        return Colors.green;
+      case '^STOXX50E':
+        return Colors.orange;
+      default:
+        return Colors.purple;
+    }
+  }
+
+  /// Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'symbol': symbol,
+      'name': name,
+      'price': price,
+      'change': change,
+      'changePercent': changePercent,
+      'currency': currency,
+      'dayHigh': dayHigh,
+      'dayLow': dayLow,
+      'open': open,
+      'previousClose': previousClose,
+      'lastUpdated': lastUpdated?.toIso8601String(),
+    };
+  }
+
+  @override
+  String toString() {
+    return 'Index($name: $formattedPrice $formattedChangePercent)';
   }
 }
 

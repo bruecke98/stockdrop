@@ -53,7 +53,8 @@ class OilWidgetProvider : AppWidgetProvider() {
         if (apiKey.isNullOrEmpty()) {
             views.setTextViewText(R.id.oil_symbol, "OIL")
             views.setTextViewText(R.id.oil_price, "API Key Required")
-            views.setTextViewText(R.id.oil_change, "")
+            views.setTextViewText(R.id.oil_change_percent, "")
+            views.setTextViewText(R.id.oil_change_abs, "")
             appWidgetManager.updateAppWidget(appWidgetId, views)
             return
         }
@@ -69,14 +70,16 @@ class OilWidgetProvider : AppWidgetProvider() {
                 } else {
                     views.setTextViewText(R.id.oil_symbol, "OIL")
                     views.setTextViewText(R.id.oil_price, "Error loading data")
-                    views.setTextViewText(R.id.oil_change, "")
+                    views.setTextViewText(R.id.oil_change_percent, "")
+                    views.setTextViewText(R.id.oil_change_abs, "")
                     appWidgetManager.updateAppWidget(appWidgetId, views)
                 }
             } catch (e: Exception) {
                 Log.e("OilWidget", "Error updating widget: ${e.message}")
                 views.setTextViewText(R.id.oil_symbol, "OIL")
                 views.setTextViewText(R.id.oil_price, "Network Error")
-                views.setTextViewText(R.id.oil_change, "")
+                views.setTextViewText(R.id.oil_change_percent, "")
+                views.setTextViewText(R.id.oil_change_abs, "")
                 appWidgetManager.updateAppWidget(appWidgetId, views)
             }
         }
@@ -85,7 +88,8 @@ class OilWidgetProvider : AppWidgetProvider() {
 
 data class OilQuote(
     val price: Double,
-    val changePercent: Double
+    val changePercent: Double,
+    val change: Double
 )
 
 data class OilHistoricalPoint(
@@ -110,7 +114,8 @@ private fun fetchOilQuote(apiKey: String): OilQuote? {
                 val oilData = jsonArray.getJSONObject(0)
                 OilQuote(
                     price = oilData.getDouble("price"),
-                    changePercent = oilData.getDouble("changesPercentage")
+                    changePercent = oilData.getDouble("changesPercentage"),
+                    change = oilData.getDouble("change")
                 )
             } else null
         } else {
@@ -176,15 +181,20 @@ private fun updateWidgetWithOilData(
     views.setTextViewText(R.id.oil_symbol, "OIL")
     views.setTextViewText(R.id.oil_price, "$${String.format("%.2f", quote.price)}")
     
-    val changeText = if (quote.changePercent >= 0) {
-        "+${String.format("%.1f", quote.changePercent)}%"
+    // Percent above absolute change
+    val percentText = String.format("%+.2f%%", quote.changePercent)
+    val absText = if (quote.change >= 0) {
+        "+$${String.format("%.2f", quote.change)}"
     } else {
-        "${String.format("%.1f", quote.changePercent)}%"
+        "-$${String.format("%.2f", Math.abs(quote.change))}"
     }
-    views.setTextViewText(R.id.oil_change, changeText)
-    
-    // Set change color - black for oil theme
-    views.setTextColor(R.id.oil_change, Color.BLACK)
+    views.setTextViewText(R.id.oil_change_percent, percentText)
+    views.setTextViewText(R.id.oil_change_abs, absText)
+
+    // Color: keep neutral/dark for oil widget but indicate up/down with green/red
+    val changeColor = if (quote.change >= 0) Color.parseColor("#006400") else Color.parseColor("#8B0000")
+    views.setTextColor(R.id.oil_change_percent, changeColor)
+    views.setTextColor(R.id.oil_change_abs, changeColor)
     
     // Chart removed - widget is now single height
     
