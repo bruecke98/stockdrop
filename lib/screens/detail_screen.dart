@@ -53,6 +53,7 @@ class _DetailScreenState extends State<DetailScreen> {
   List<SectorPerformance> _sectorPerformance = [];
   List<InsiderTrading> _insiderTrading = [];
   List<SenateTrading> _senateTrading = [];
+  List<HouseTrading> _houseTrading = [];
   List<RevenueSegmentation> _revenueSegmentation = [];
   List<RevenueSegmentation> _revenueGeoSegmentation = [];
   bool _showGeographicRevenue = false;
@@ -62,12 +63,17 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isTogglingFavorite = false;
   bool _isDescriptionExpanded = false;
   bool _isDcfExtendedView = false;
-  bool _showMoreInsiderTrades = false;
+  int _insiderTradesBatchCount =
+      0; // Number of 10-trade batches loaded (0 = show 1, 1 = show 11, etc.)
   String _insiderTransactionFilter = 'All'; // All, Buy, Sell
-  bool _showInsiderFilters = false;
-  bool _showMoreSenateTrades = false;
+  int _senateTradesBatchCount =
+      0; // Number of 10-trade batches loaded (0 = show 1, 1 = show 11, etc.)
   String _senateTransactionFilter = 'All'; // All, Buy, Sell
-  bool _showSenateFilters = false;
+  int _houseTradesBatchCount =
+      0; // Number of 10-trade batches loaded (0 = show 1, 1 = show 11, etc.)
+  String _houseTransactionFilter = 'All'; // All, Buy, Sell
+  bool _isSenateTradingSelected =
+      true; // Toggle between Senate and House trading
   String? _error;
   String? _stockSymbol;
 
@@ -4924,107 +4930,6 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Altman Z-Score Card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: theme.colorScheme.outline.withOpacity(0.2),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.shield,
-                      color: _getScoreColor(
-                        _financialScores!.getAltmanZScoreColor(),
-                      ),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Bankruptcy Risk (Z-Score)',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _financialScores!.altmanZScore?.toStringAsFixed(
-                                  1,
-                                ) ??
-                                'N/A',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: _getScoreColor(
-                                _financialScores!.getAltmanZScoreColor(),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _financialScores!.getAltmanZScoreInterpretation(),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _getScoreColor(
-                          _financialScores!.getAltmanZScoreColor(),
-                        ).withOpacity(0.1),
-                        border: Border.all(
-                          color: _getScoreColor(
-                            _financialScores!.getAltmanZScoreColor(),
-                          ).withOpacity(0.3),
-                          width: 2,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _financialScores!.altmanZScore != null
-                              ? (_financialScores!.altmanZScore! > 3
-                                    ? 'A'
-                                    : _financialScores!.altmanZScore! > 1.8
-                                    ? 'B'
-                                    : 'C')
-                              : 'N/A',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: _getScoreColor(
-                              _financialScores!.getAltmanZScoreColor(),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
           // Piotroski F-Score Card
           Container(
             padding: const EdgeInsets.all(16),
@@ -5038,45 +4943,56 @@ class _DetailScreenState extends State<DetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.analytics,
-                      color: _getScoreColor(
-                        _financialScores!.getPiotroskiScoreColor(),
-                      ),
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Fundamental Strength (F-Score)',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                // Main heading
+                Text(
+                  'Piotrowski F Score',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
+                // Subheading
+                Text(
+                  'Fundamental Strength',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            _financialScores!.piotroskiScore?.toString() ??
-                                'N/A',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: _getScoreColor(
-                                _financialScores!.getPiotroskiScoreColor(),
+                          Row(
+                            children: [
+                              Text(
+                                _financialScores!.piotroskiScore?.toString() ??
+                                    'N/A',
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _getScoreColor(
+                                    _financialScores!.getPiotroskiScoreColor(),
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.arrow_upward,
+                                color: _getScoreColor(
+                                  _financialScores!.getPiotroskiScoreColor(),
+                                ),
+                                size: 20,
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           Text(
                             _financialScores!.getPiotroskiScoreInterpretation(),
-                            style: theme.textTheme.bodySmall?.copyWith(
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
@@ -5084,14 +5000,14 @@ class _DetailScreenState extends State<DetailScreen> {
                       ),
                     ),
                     Container(
-                      width: 60,
-                      height: 60,
+                      width: 80,
+                      height: 80,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
                           SizedBox(
-                            width: 60,
-                            height: 60,
+                            width: 80,
+                            height: 80,
                             child: CircularProgressIndicator(
                               value:
                                   (_financialScores!.piotroskiScore ?? 0) / 9,
@@ -5101,342 +5017,281 @@ class _DetailScreenState extends State<DetailScreen> {
                                   _financialScores!.getPiotroskiScoreColor(),
                                 ),
                               ),
-                              strokeWidth: 6,
+                              strokeWidth: 8,
                             ),
                           ),
-                          Text(
-                            '${_financialScores!.piotroskiScore ?? 0}/9',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: _getScoreColor(
-                                _financialScores!.getPiotroskiScoreColor(),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${_financialScores!.piotroskiScore ?? 0}',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _getScoreColor(
+                                    _financialScores!.getPiotroskiScoreColor(),
+                                  ),
+                                ),
                               ),
-                            ),
+                              Text(
+                                '/9',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                // Legend
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Score Ranges:',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildScoreRange(
+                        '9',
+                        'Excellent',
+                        'Strong financial health',
+                        Colors.green,
+                        theme,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildScoreRange(
+                        '7-8',
+                        'Good',
+                        'Solid fundamentals',
+                        Colors.lightGreen,
+                        theme,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildScoreRange(
+                        '4-6',
+                        'Fair',
+                        'Mixed signals',
+                        Colors.orange,
+                        theme,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildScoreRange(
+                        '0-3',
+                        'Weak',
+                        'Concerning fundamentals',
+                        Colors.red,
+                        theme,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildAltmanZScoreBreakdown(ThemeData theme) {
-    final components = _financialScores!.getAltmanZScoreComponents();
+          const SizedBox(height: 16),
 
-    if (components.isEmpty) {
-      return Text(
-        'Calculation components not available',
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.onSurfaceVariant,
-          fontStyle: FontStyle.italic,
-        ),
-      );
-    }
-
-    // Calculate weighted components
-    final wcToTa = components['Working Capital / Total Assets'] ?? 0;
-    final reToTa = components['Retained Earnings / Total Assets'] ?? 0;
-    final ebitToTa = components['EBIT / Total Assets'] ?? 0;
-    final mvToTl =
-        components['Market Value of Equity / Total Liabilities'] ?? 0;
-    final salesToTa = components['Sales / Total Assets'] ?? 0;
-
-    final weightedA = 1.2 * wcToTa;
-    final weightedB = 1.4 * reToTa;
-    final weightedC = 3.3 * ebitToTa;
-    final weightedD = 0.6 * mvToTl;
-    final weightedE = 1.0 * salesToTa;
-
-    final totalScore = _financialScores!.altmanZScore ?? 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Formula header
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: [
-              Text(
-                'Z-Score = 1.2A + 1.4B + 3.3C + 0.6D + 1.0E',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary,
-                  fontSize: 12,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildWeightedComponent('1.2A', weightedA, theme),
-                  const SizedBox(width: 8),
-                  Text(
-                    '+',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildWeightedComponent('1.4B', weightedB, theme),
-                  const SizedBox(width: 8),
-                  Text(
-                    '+',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildWeightedComponent('3.3C', weightedC, theme),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildWeightedComponent('0.6D', weightedD, theme),
-                  const SizedBox(width: 8),
-                  Text(
-                    '+',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildWeightedComponent('1.0E', weightedE, theme),
-                  const SizedBox(width: 8),
-                  Text(
-                    '=',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getScoreColor(
-                        _financialScores!.getAltmanZScoreColor(),
-                      ),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      totalScore.toStringAsFixed(2),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Component breakdown
-        Text(
-          'Component Breakdown:',
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // Component explanations with visual bars
-        _buildComponentExplanation(
-          'A: Working Capital / Total Assets',
-          'Liquidity measure',
-          wcToTa,
-          weightedA,
-          1.2,
-          theme,
-        ),
-        const SizedBox(height: 8),
-        _buildComponentExplanation(
-          'B: Retained Earnings / Total Assets',
-          'Accumulated profitability',
-          reToTa,
-          weightedB,
-          1.4,
-          theme,
-        ),
-        const SizedBox(height: 8),
-        _buildComponentExplanation(
-          'C: EBIT / Total Assets',
-          'Operating profitability',
-          ebitToTa,
-          weightedC,
-          3.3,
-          theme,
-        ),
-        const SizedBox(height: 8),
-        _buildComponentExplanation(
-          'D: Market Value / Total Liabilities',
-          'Market confidence in company',
-          mvToTl,
-          weightedD,
-          0.6,
-          theme,
-        ),
-        const SizedBox(height: 8),
-        _buildComponentExplanation(
-          'E: Sales / Total Assets',
-          'Asset utilization efficiency',
-          salesToTa,
-          weightedE,
-          1.0,
-          theme,
-        ),
-
-        const SizedBox(height: 16),
-        // Risk zones explanation
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Risk Zones:',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildRiskZone(
-                '> 3.0',
-                'Safe Zone',
-                'Low bankruptcy risk',
-                Colors.green,
-                theme,
-              ),
-              const SizedBox(height: 4),
-              _buildRiskZone(
-                '1.8 - 3.0',
-                'Grey Zone',
-                'Moderate risk',
-                Colors.orange,
-                theme,
-              ),
-              const SizedBox(height: 4),
-              _buildRiskZone(
-                '< 1.8',
-                'Distress Zone',
-                'High bankruptcy risk',
-                Colors.red,
-                theme,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildWeightedComponent(String label, double value, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '${value >= 0 ? '+' : ''}${value.toStringAsFixed(2)}',
-        style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w600,
-          fontSize: 11,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildComponentExplanation(
-    String formula,
-    String description,
-    double rawValue,
-    double weightedValue,
-    double weight,
-    ThemeData theme,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  formula,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-              ),
-              Text(
-                '${rawValue.toStringAsFixed(3)} × $weight = ${weightedValue.toStringAsFixed(2)}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            description,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 10,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Visual bar
+          // Altman Z-Score Card
           Container(
-            height: 4,
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(2),
-            ),
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: (rawValue.abs() / 0.5).clamp(
-                0.0,
-                1.0,
-              ), // Scale to 0-0.5 range
-              child: Container(
-                decoration: BoxDecoration(
-                  color: rawValue >= 0 ? Colors.green : Colors.red,
-                  borderRadius: BorderRadius.circular(2),
-                ),
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.2),
               ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Main heading
+                Text(
+                  'Altman Z Score',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                // Subheading
+                Text(
+                  'Bankruptcy Risk',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                _financialScores!.altmanZScore?.toStringAsFixed(
+                                      1,
+                                    ) ??
+                                    'N/A',
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _getScoreColor(
+                                    _financialScores!.getAltmanZScoreColor(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                _financialScores!.altmanZScore != null &&
+                                        _financialScores!.altmanZScore! >= 3.0
+                                    ? Icons.shield
+                                    : _financialScores!.altmanZScore != null &&
+                                          _financialScores!.altmanZScore! >= 1.8
+                                    ? Icons.warning
+                                    : Icons.dangerous,
+                                color: _getScoreColor(
+                                  _financialScores!.getAltmanZScoreColor(),
+                                ),
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _financialScores!.getAltmanZScoreInterpretation(),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Current position indicator
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getScoreColor(
+                                _financialScores!.getAltmanZScoreColor(),
+                              ).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _getScoreColor(
+                                  _financialScores!.getAltmanZScoreColor(),
+                                ).withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              'You are here →',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: _getScoreColor(
+                                  _financialScores!.getAltmanZScoreColor(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _getScoreColor(
+                          _financialScores!.getAltmanZScoreColor(),
+                        ).withOpacity(0.1),
+                        border: Border.all(
+                          color: _getScoreColor(
+                            _financialScores!.getAltmanZScoreColor(),
+                          ).withOpacity(0.3),
+                          width: 3,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _financialScores!.altmanZScore != null
+                              ? (_financialScores!.altmanZScore! > 3
+                                    ? 'A'
+                                    : _financialScores!.altmanZScore! > 1.8
+                                    ? 'B'
+                                    : 'C')
+                              : 'N/A',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: _getScoreColor(
+                              _financialScores!.getAltmanZScoreColor(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Legend
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Risk Zones:',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildScoreRange(
+                        '> 3.0',
+                        'Safe Zone',
+                        'Low bankruptcy risk',
+                        Colors.green,
+                        theme,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildScoreRange(
+                        '1.8 - 3.0',
+                        'Grey Zone',
+                        'Moderate risk',
+                        Colors.orange,
+                        theme,
+                      ),
+                      const SizedBox(height: 4),
+                      _buildScoreRange(
+                        '< 1.8',
+                        'Distress Zone',
+                        'High bankruptcy risk',
+                        Colors.red,
+                        theme,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -5444,130 +5299,7 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildRiskZone(
-    String range,
-    String zone,
-    String description,
-    Color color,
-    ThemeData theme,
-  ) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: '$range: ',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                    fontSize: 11,
-                  ),
-                ),
-                TextSpan(
-                  text: '$zone - $description',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPiotroskiScoreBreakdown(ThemeData theme) {
-    final score = _financialScores!.piotroskiScore ?? 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            'F-Score evaluates 9 fundamental signals of financial strength',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.primary,
-              fontSize: 12,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 16),
-        // Score interpretation
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Score Interpretation:',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildPiotroskiScoreZone(
-                '9',
-                'Excellent',
-                'Strong financial health across all metrics',
-                score == 9 ? Colors.green : Colors.grey,
-                theme,
-              ),
-              const SizedBox(height: 4),
-              _buildPiotroskiScoreZone(
-                '7-8',
-                'Good',
-                'Solid fundamentals with minor concerns',
-                score >= 7 && score <= 8 ? Colors.lightGreen : Colors.grey,
-                theme,
-              ),
-              const SizedBox(height: 4),
-              _buildPiotroskiScoreZone(
-                '4-6',
-                'Fair',
-                'Mixed signals, requires monitoring',
-                score >= 4 && score <= 6 ? Colors.orange : Colors.grey,
-                theme,
-              ),
-              const SizedBox(height: 4),
-              _buildPiotroskiScoreZone(
-                '0-3',
-                'Weak',
-                'Significant fundamental concerns',
-                score <= 3 ? Colors.red : Colors.grey,
-                theme,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPiotroskiScoreZone(
+  Widget _buildScoreRange(
     String range,
     String quality,
     String description,
@@ -5594,14 +5326,12 @@ class _DetailScreenState extends State<DetailScreen> {
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: theme.colorScheme.onSurface,
-                    fontSize: 11,
                   ),
                 ),
                 TextSpan(
                   text: '$quality - $description',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 11,
                   ),
                 ),
               ],
@@ -5917,7 +5647,10 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _buildSenateTradingSection(ThemeData theme) {
-    if (_senateTrading.isEmpty) {
+    final hasSenateData = _senateTrading.isNotEmpty;
+    final hasHouseData = _houseTrading.isNotEmpty;
+
+    if (!hasSenateData && !hasHouseData) {
       return const SizedBox.shrink();
     }
 
@@ -5935,13 +5668,17 @@ class _DetailScreenState extends State<DetailScreen> {
           Row(
             children: [
               Icon(
-                Icons.account_balance_outlined,
+                _isSenateTradingSelected
+                    ? Icons.account_balance_outlined
+                    : Icons.home_outlined,
                 color: theme.colorScheme.primary,
                 size: 24,
               ),
               const SizedBox(width: 8),
               Text(
-                'Senate Trading Activity',
+                _isSenateTradingSelected
+                    ? 'Senate Trading Activity'
+                    : 'House Trading Activity',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -5950,20 +5687,95 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Congressional stock trading disclosures (Senate Office of Public Records)',
+            _isSenateTradingSelected
+                ? 'Congressional stock trading disclosures (Senate Office of Public Records)'
+                : 'Congressional stock trading disclosures (House Committee on Ethics)',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 20),
-          _buildSenateTradingChart(theme),
-          const SizedBox(height: 20),
-          _buildTransactionBreakdownBars(theme, _senateTrading, true),
-          _buildSenateTradingFilters(theme),
           const SizedBox(height: 16),
-          _buildSenateTradingList(theme),
+          // Toggle Switch
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Senate',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: _isSenateTradingSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: _isSenateTradingSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Switch(
+                  value: !_isSenateTradingSelected,
+                  onChanged: (value) {
+                    setState(() {
+                      _isSenateTradingSelected = !value;
+                      // Reset batch counts when switching
+                      _senateTradesBatchCount = 0;
+                      _houseTradesBatchCount = 0;
+                    });
+                  },
+                  activeColor: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'House',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: !_isSenateTradingSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: !_isSenateTradingSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          _isSenateTradingSelected
+              ? _buildSenateTradingContent(theme)
+              : _buildHouseTradingContent(theme),
         ],
       ),
+    );
+  }
+
+  Widget _buildSenateTradingContent(ThemeData theme) {
+    return Column(
+      children: [
+        _buildSenateTradingChart(theme),
+        const SizedBox(height: 20),
+        _buildTransactionBreakdownBars(theme, _senateTrading, true),
+        _buildSenateTradingFilters(theme),
+        const SizedBox(height: 16),
+        _buildSenateTradingList(theme),
+      ],
+    );
+  }
+
+  Widget _buildHouseTradingContent(ThemeData theme) {
+    return Column(
+      children: [
+        _buildHouseTradingChart(theme),
+        const SizedBox(height: 20),
+        _buildTransactionBreakdownBars(theme, _houseTrading, true),
+        _buildHouseTradingFilters(theme),
+        const SizedBox(height: 16),
+        _buildHouseTradingList(theme),
+      ],
     );
   }
 
@@ -6432,170 +6244,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildVolumeChartWithSenateTrades(
-    ThemeData theme,
-    List<ChartDataPoint> priceData,
-    List<SenateTrading> filteredTrades,
-  ) {
-    if (filteredTrades.isEmpty) {
-      return const Center(child: Text('No trading volume data'));
-    }
-
-    // Parse amounts to numbers for calculation
-    final amounts = filteredTrades.map((trade) {
-      try {
-        return int.parse(trade.amount.replaceAll(',', '').replaceAll('\$', ''));
-      } catch (e) {
-        return 0;
-      }
-    }).toList();
-
-    // Use price range for scaling instead of volume normalization
-    final prices = priceData.map((point) => point.price).toList();
-    final minPrice = prices.reduce((a, b) => a < b ? a : b);
-    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
-    final priceRange = maxPrice - minPrice;
-
-    // Create volume data points for bar chart
-    final volumeData = <BarChartGroupData>[];
-    final maxVolume = amounts.isNotEmpty
-        ? amounts.reduce((a, b) => a > b ? a : b)
-        : 0;
-
-    for (int i = 0; i < filteredTrades.length; i++) {
-      final trade = filteredTrades[i];
-      final volume = amounts[i].toDouble();
-
-      // Scale volume based on price range for height, with safety checks
-      double scaledHeight;
-      if (maxVolume > 0 && priceRange > 0) {
-        scaledHeight = ((volume / maxVolume) * priceRange * 0.8) + minPrice;
-      } else if (maxVolume > 0) {
-        // If price range is 0, use a fixed scale
-        scaledHeight = (volume / maxVolume) * 100.0;
-      } else {
-        // If no volume data, use minimum price
-        scaledHeight = minPrice;
-      }
-
-      volumeData.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: scaledHeight.isFinite ? scaledHeight : minPrice,
-              color: trade.isBuy ? Colors.green : Colors.red,
-              width: 6,
-              borderRadius: trade.isBuy
-                  ? const BorderRadius.only(
-                      topLeft: Radius.circular(2),
-                      topRight: Radius.circular(2),
-                    )
-                  : const BorderRadius.only(
-                      bottomLeft: Radius.circular(2),
-                      bottomRight: Radius.circular(2),
-                    ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: priceRange > 0 ? maxPrice + (priceRange * 0.2) : maxPrice + 20,
-        barTouchData: BarTouchData(
-          enabled: true,
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final trade = filteredTrades[group.x.toInt()];
-              final volume = amounts[group.x.toInt()];
-              return BarTooltipItem(
-                '${trade.fullName}\n${DateTime.parse(trade.transactionDate).month}/${DateTime.parse(trade.transactionDate).day}\nVolume: ${_formatNumber(volume)}\n${trade.type}',
-                TextStyle(color: theme.colorScheme.onSurface),
-              );
-            },
-          ),
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 &&
-                    index < filteredTrades.length &&
-                    index % 5 == 0) {
-                  // Show every 5th trade date
-                  try {
-                    final trade = filteredTrades[index];
-                    final date = DateTime.parse(trade.transactionDate);
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        '${date.month}/${date.day}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontSize: 9,
-                        ),
-                      ),
-                    );
-                  } catch (e) {
-                    return const SizedBox.shrink();
-                  }
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 60,
-              getTitlesWidget: (value, meta) {
-                // Show price values on left axis
-                if (value >= minPrice && value <= maxPrice && value.isFinite) {
-                  return Text(
-                    '\$${value.toStringAsFixed(0)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 8,
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: priceRange > 0
-              ? priceRange / 5
-              : 10, // Show 5 grid lines in price range or fallback
-          getDrawingHorizontalLine: (value) {
-            return FlLine(
-              color: theme.colorScheme.outline.withOpacity(0.2),
-              strokeWidth: 1,
-            );
-          },
-        ),
-        borderData: FlBorderData(show: false),
-        barGroups: volumeData,
-      ),
-    );
-  }
-
   List<InsiderTrading> _getFilteredInsiderTrades() {
     return _insiderTrading.where((trade) {
       // Transaction type filter
@@ -6609,39 +6257,10 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _buildInsiderTradingFilters(ThemeData theme) {
-    return Column(
+    return Row(
       children: [
-        // Toggle filters visibility
-        Row(
-          children: [
-            Text(
-              'Filters',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const Spacer(),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _showInsiderFilters = !_showInsiderFilters;
-                });
-              },
-              icon: Icon(
-                _showInsiderFilters ? Icons.expand_less : Icons.expand_more,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
-        ),
-        if (_showInsiderFilters) ...[
-          const SizedBox(height: 12),
-          // Transaction type filter only
-          DropdownButtonFormField<String>(
+        Expanded(
+          child: DropdownButtonFormField<String>(
             value: _insiderTransactionFilter,
             onChanged: (value) {
               if (value != null) {
@@ -6684,27 +6303,23 @@ class _DetailScreenState extends State<DetailScreen> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 8),
-          // Results count
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '${_getFilteredInsiderTrades().length} transactions',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '${_getFilteredInsiderTrades().length} transactions',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-        ],
+        ),
       ],
     );
   }
 
   Widget _buildInsiderTradingList(ThemeData theme) {
     final filteredTrades = _getFilteredInsiderTrades();
-    final displayTrades = _showMoreInsiderTrades
-        ? filteredTrades.take(100).toList()
-        : filteredTrades.take(3).toList();
+    final displayCount = 1 + (_insiderTradesBatchCount * 10);
+    final displayTrades = filteredTrades.take(displayCount).toList();
+    final hasMoreTrades = displayCount < filteredTrades.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6719,11 +6334,11 @@ class _DetailScreenState extends State<DetailScreen> {
                 color: theme.colorScheme.primary,
               ),
             ),
-            if (filteredTrades.length > 3)
+            if (_insiderTradesBatchCount > 0)
               TextButton(
                 onPressed: () {
                   setState(() {
-                    _showMoreInsiderTrades = !_showMoreInsiderTrades;
+                    _insiderTradesBatchCount = 0;
                   });
                 },
                 style: TextButton.styleFrom(
@@ -6735,9 +6350,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  _showMoreInsiderTrades
-                      ? 'Show Less'
-                      : 'Show More (${filteredTrades.length - 3})',
+                  'Show Less',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -6873,6 +6486,33 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
           ),
         ),
+        if (hasMoreTrades) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _insiderTradesBatchCount++;
+                });
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Show More (10)',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -6889,11 +6529,23 @@ class _DetailScreenState extends State<DetailScreen> {
     }).toList();
   }
 
+  List<HouseTrading> _getFilteredHouseTrades() {
+    return _houseTrading.where((trade) {
+      // Transaction type filter
+      if (_houseTransactionFilter != 'All') {
+        if (_houseTransactionFilter == 'Buy' && !trade.isBuy) return false;
+        if (_houseTransactionFilter == 'Sell' && !trade.isSell) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
   Widget _buildSenateTradingList(ThemeData theme) {
     final filteredTrades = _getFilteredSenateTrades();
-    final displayTrades = _showMoreSenateTrades
-        ? filteredTrades.take(50).toList()
-        : filteredTrades.take(3).toList();
+    final displayCount = 1 + (_senateTradesBatchCount * 10);
+    final displayTrades = filteredTrades.take(displayCount).toList();
+    final hasMoreTrades = displayCount < filteredTrades.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -6908,11 +6560,11 @@ class _DetailScreenState extends State<DetailScreen> {
                 color: theme.colorScheme.primary,
               ),
             ),
-            if (filteredTrades.length > 3)
+            if (_senateTradesBatchCount > 0)
               TextButton(
                 onPressed: () {
                   setState(() {
-                    _showMoreSenateTrades = !_showMoreSenateTrades;
+                    _senateTradesBatchCount = 0;
                   });
                 },
                 style: TextButton.styleFrom(
@@ -6924,9 +6576,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text(
-                  _showMoreSenateTrades
-                      ? 'Show Less'
-                      : 'Show More (${filteredTrades.length - 3})',
+                  'Show Less',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
@@ -7042,6 +6692,33 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
           ),
         ),
+        if (hasMoreTrades) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _senateTradesBatchCount++;
+                });
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Show More (10)',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -7302,40 +6979,323 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildSenateTradingFilters(ThemeData theme) {
-    return Column(
-      children: [
-        // Toggle filters visibility
-        Row(
-          children: [
-            Text(
-              'Filters',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const Spacer(),
-            IconButton(
-              onPressed: () {
-                setState(() {
-                  _showSenateFilters = !_showSenateFilters;
-                });
+  Widget _buildPriceChartWithHouseDots(
+    ThemeData theme,
+    List<ChartDataPoint> priceData,
+  ) {
+    if (priceData.isEmpty) {
+      return const Center(child: Text('No price data available'));
+    }
+
+    // Get filtered House trading data
+    final filteredTrades = _getFilteredHouseTrades();
+
+    // Convert price data to FlSpot
+    final spots = priceData.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value.price);
+    }).toList();
+
+    // Calculate min/max prices
+    final prices = priceData.map((p) => p.price);
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice;
+    final padding = priceRange * 0.1;
+
+    // Create additional spots for House trading dots
+    final houseSpots = <FlSpot>[];
+    for (final trade in filteredTrades) {
+      try {
+        final tradeDate = DateTime.parse(trade.transactionDate);
+        final dateKey = tradeDate.toIso8601String().split('T')[0];
+
+        // Find the closest price data point
+        final pricePoint = priceData.firstWhere(
+          (point) => point.date.toIso8601String().split('T')[0] == dateKey,
+          orElse: () => priceData
+              .last, // Use last available price if exact date not found
+        );
+
+        // Find the x position in the chart
+        final xIndex = priceData.indexOf(pricePoint);
+        if (xIndex >= 0) {
+          houseSpots.add(FlSpot(xIndex.toDouble(), pricePoint.price));
+        }
+      } catch (e) {
+        // Skip trades with invalid dates
+        continue;
+      }
+    }
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: priceRange / 4,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: theme.colorScheme.outline.withOpacity(0.1),
+              strokeWidth: 1,
+            );
+          },
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              interval: (priceData.length / 4).ceil().toDouble(),
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < priceData.length) {
+                  final date = priceData[index].date;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '${date.month}/${date.day}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
               },
-              icon: Icon(
-                _showSenateFilters ? Icons.expand_less : Icons.expand_more,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: priceRange / 4,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  '\$${value.toStringAsFixed(2)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 10,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: (priceData.length - 1).toDouble(),
+        minY: minPrice - padding,
+        maxY: maxPrice + padding,
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: theme.colorScheme.primary,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: theme.colorScheme.primary.withOpacity(0.1),
+            ),
+          ),
+          // Add House trading dots as a separate line with dots only
+          LineChartBarData(
+            spots: houseSpots,
+            isCurved: false,
+            color: Colors.transparent, // Make line invisible
+            barWidth: 0,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                final trade =
+                    filteredTrades[index %
+                        filteredTrades.length]; // Get corresponding trade
+                return FlDotCirclePainter(
+                  radius: 4,
+                  color: trade.isBuy ? Colors.green : Colors.red,
+                  strokeWidth: 1,
+                  strokeColor: theme.colorScheme.surface,
+                );
+              },
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots
+                  .map((spot) {
+                    final index = spot.x.toInt();
+                    if (index >= 0 && index < priceData.length) {
+                      final point = priceData[index];
+                      return LineTooltipItem(
+                        '${point.date.month}/${point.date.day}: \$${point.price.toStringAsFixed(2)}',
+                        TextStyle(color: theme.colorScheme.onSurface),
+                      );
+                    }
+                    return null;
+                  })
+                  .whereType<LineTooltipItem>()
+                  .toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolumeChartWithHouseTrades(
+    ThemeData theme,
+    List<ChartDataPoint> priceData,
+    List<HouseTrading> filteredTrades,
+  ) {
+    if (filteredTrades.isEmpty) {
+      return const Center(child: Text('No trading volume data'));
+    }
+
+    // Use price range for scaling instead of volume normalization
+    final prices = priceData.map((point) => point.price).toList();
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice;
+
+    // Create volume data points for bar chart
+    final volumeData = <BarChartGroupData>[];
+    final maxVolume = filteredTrades.isNotEmpty
+        ? filteredTrades
+              .map((trade) => trade.approximateAmount)
+              .reduce((a, b) => a > b ? a : b)
+        : 0;
+
+    for (int i = 0; i < filteredTrades.length; i++) {
+      final trade = filteredTrades[i];
+      final volume = trade.approximateAmount;
+
+      // Scale volume based on price range for height, with safety checks
+      double scaledHeight;
+      if (maxVolume > 0 && priceRange > 0) {
+        scaledHeight = ((volume / maxVolume) * priceRange * 0.8) + minPrice;
+      } else if (maxVolume > 0) {
+        // If price range is 0, use a fixed scale
+        scaledHeight = (volume / maxVolume) * 100.0;
+      } else {
+        // If no volume data, use minimum price
+        scaledHeight = minPrice;
+      }
+
+      volumeData.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: scaledHeight.isFinite ? scaledHeight : minPrice,
+              color: trade.isBuy ? Colors.green : Colors.red,
+              width: 6,
+              borderRadius: trade.isBuy
+                  ? const BorderRadius.only(
+                      topLeft: Radius.circular(2),
+                      topRight: Radius.circular(2),
+                    )
+                  : const BorderRadius.only(
+                      bottomLeft: Radius.circular(2),
+                      bottomRight: Radius.circular(2),
+                    ),
             ),
           ],
         ),
-        if (_showSenateFilters) ...[
-          const SizedBox(height: 12),
-          // Transaction type filter only
-          DropdownButtonFormField<String>(
+      );
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: maxPrice + (priceRange * 0.2),
+        minY: minPrice - (priceRange * 0.1),
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final trade = filteredTrades[groupIndex];
+              return BarTooltipItem(
+                '${trade.fullName}\n${trade.formattedAmount}',
+                TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < filteredTrades.length) {
+                  final trade = filteredTrades[index];
+                  try {
+                    final date = DateTime.parse(trade.transactionDate);
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '${date.month}/${date.day}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 9,
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        trade.transactionDate,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 9,
+                        ),
+                      ),
+                    );
+                  }
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          leftTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        gridData: FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        barGroups: volumeData,
+      ),
+    );
+  }
+
+  Widget _buildSenateTradingFilters(ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
             value: _senateTransactionFilter,
             onChanged: (value) {
               if (value != null) {
@@ -7384,14 +7344,359 @@ class _DetailScreenState extends State<DetailScreen> {
               );
             }).toList(),
           ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '${_getFilteredSenateTrades().length} disclosures',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHouseTradingChart(ThemeData theme) {
+    return Container(
+      height: 400,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Stock Price with House Trading',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<List<ChartDataPoint>>(
+              future: _fetchStockPriceData(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Unable to load price data'));
+                }
+
+                final priceData = snapshot.data!;
+                final filteredTrades = _getFilteredHouseTrades();
+
+                return Column(
+                  children: [
+                    // Price chart (top half)
+                    Expanded(
+                      flex: 3,
+                      child: _buildPriceChartWithHouseDots(theme, priceData),
+                    ),
+                    const SizedBox(height: 8),
+                    // Volume chart (bottom half)
+                    Expanded(
+                      flex: 2,
+                      child: _buildVolumeChartWithHouseTrades(
+                        theme,
+                        priceData,
+                        filteredTrades,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
           const SizedBox(height: 8),
-          // Results count
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '${_getFilteredSenateTrades().length} disclosures',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Buy',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Sell',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHouseTradingFilters(ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: _houseTransactionFilter,
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _houseTransactionFilter = value;
+                });
+              }
+            },
+            decoration: InputDecoration(
+              labelText: 'Show Transactions',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+            ),
+            items: ['All', 'Buy', 'Sell'].map((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: type == 'Buy'
+                            ? Colors.green
+                            : type == 'Sell'
+                            ? Colors.red
+                            : Colors.grey,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      type == 'Buy'
+                          ? 'Purchase'
+                          : type == 'Sell'
+                          ? 'Sale'
+                          : type,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '${_getFilteredHouseTrades().length} disclosures',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHouseTradingList(ThemeData theme) {
+    final filteredTrades = _getFilteredHouseTrades();
+    final displayCount = 1 + (_houseTradesBatchCount * 10);
+    final displayTrades = filteredTrades.take(displayCount).toList();
+    final hasMoreTrades = displayCount < filteredTrades.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Disclosures',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            if (_houseTradesBatchCount > 0)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _houseTradesBatchCount = 0;
+                  });
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'Show Less',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...displayTrades.map(
+          (trade) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: trade.getTransactionColor(),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trade.fullName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      trade.formattedTransactionDate,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${trade.office} • ${trade.district}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (trade.owner.isNotEmpty && trade.owner != '--') ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Owner: ${trade.owner}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${trade.type} • ${trade.formattedAmount}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: trade.getTransactionColor(),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (trade.comment.isNotEmpty && trade.comment != '--') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Comment: ${trade.comment}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                if (trade.link.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: () async {
+                      final url = Uri.parse(trade.link);
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(
+                          url,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                    child: Text(
+                      'View Disclosure →',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        if (hasMoreTrades) ...[
+          const SizedBox(height: 12),
+          Center(
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _houseTradesBatchCount++;
+                });
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Show More (10)',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -7562,6 +7867,7 @@ class _DetailScreenState extends State<DetailScreen> {
         _fetchSectorPerformance(),
         _fetchInsiderTrading(),
         _fetchSenateTrading(),
+        _fetchHouseTrading(),
         _fetchRevenueSegmentation(),
         _fetchCompanyProfile(),
       ]);
@@ -7731,6 +8037,17 @@ class _DetailScreenState extends State<DetailScreen> {
       _senateTrading = await apiService.getSenateTrading(_stockSymbol!);
     } catch (e) {
       debugPrint('Error fetching senate trading: $e');
+    }
+  }
+
+  Future<void> _fetchHouseTrading() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _houseTrading = await apiService.getHouseTrading(_stockSymbol!);
+    } catch (e) {
+      debugPrint('Error fetching house trading: $e');
     }
   }
 
