@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Import the new ChartWidget
 import '../widgets/chart_widget.dart';
@@ -51,6 +52,7 @@ class _DetailScreenState extends State<DetailScreen> {
   FinancialScores? _financialScores;
   List<SectorPerformance> _sectorPerformance = [];
   List<InsiderTrading> _insiderTrading = [];
+  List<SenateTrading> _senateTrading = [];
   List<RevenueSegmentation> _revenueSegmentation = [];
   List<RevenueSegmentation> _revenueGeoSegmentation = [];
   bool _showGeographicRevenue = false;
@@ -63,6 +65,9 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _showMoreInsiderTrades = false;
   String _insiderTransactionFilter = 'All'; // All, Buy, Sell
   bool _showInsiderFilters = false;
+  bool _showMoreSenateTrades = false;
+  String _senateTransactionFilter = 'All'; // All, Buy, Sell
+  bool _showSenateFilters = false;
   String? _error;
   String? _stockSymbol;
 
@@ -186,6 +191,8 @@ class _DetailScreenState extends State<DetailScreen> {
             _buildSectorComparisonSection(theme),
             const SizedBox(height: 24),
             _buildInsiderTradingSection(theme),
+            const SizedBox(height: 24),
+            _buildSenateTradingSection(theme),
             const SizedBox(height: 24),
             _buildRevenueSegmentationSection(theme),
             const SizedBox(height: 24),
@@ -5720,6 +5727,144 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Widget _buildTransactionBreakdownBars(
+    ThemeData theme,
+    List<dynamic> trades,
+    bool isSenate,
+  ) {
+    if (trades.isEmpty) return const SizedBox.shrink();
+
+    int buyCount = 0;
+    int sellCount = 0;
+
+    for (var trade in trades) {
+      if (isSenate ? trade.isBuy : trade.isBuy) {
+        buyCount++;
+      } else if (isSenate ? trade.isSell : trade.isSell) {
+        sellCount++;
+      }
+    }
+
+    int totalTransactions = buyCount + sellCount;
+    if (totalTransactions == 0) return const SizedBox.shrink();
+
+    double buyPercentage = (buyCount / totalTransactions) * 100;
+    double sellPercentage = (sellCount / totalTransactions) * 100;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Transaction Breakdown',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              // Sales bar (red, left side)
+              Expanded(
+                flex: sellCount,
+                child: Container(
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.8),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      bottomLeft: Radius.circular(12),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${sellPercentage.toStringAsFixed(1)}%',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
+              // Buys bar (green, right side)
+              Expanded(
+                flex: buyCount,
+                child: Container(
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.8),
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '${buyPercentage.toStringAsFixed(1)}%',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Sales ($sellCount)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Buys ($buyCount)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInsiderTradingSection(ThemeData theme) {
     if (_insiderTrading.isEmpty) {
       return const SizedBox.shrink();
@@ -5762,9 +5907,61 @@ class _DetailScreenState extends State<DetailScreen> {
           const SizedBox(height: 20),
           _buildInsiderTradingChart(theme),
           const SizedBox(height: 20),
+          _buildTransactionBreakdownBars(theme, _insiderTrading, false),
           _buildInsiderTradingFilters(theme),
           const SizedBox(height: 16),
           _buildInsiderTradingList(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSenateTradingSection(ThemeData theme) {
+    if (_senateTrading.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.account_balance_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Senate Trading Activity',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Congressional stock trading disclosures (Senate Office of Public Records)',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 20),
+          _buildSenateTradingChart(theme),
+          const SizedBox(height: 20),
+          _buildTransactionBreakdownBars(theme, _senateTrading, true),
+          _buildSenateTradingFilters(theme),
+          const SizedBox(height: 16),
+          _buildSenateTradingList(theme),
         ],
       ),
     );
@@ -6087,27 +6284,42 @@ class _DetailScreenState extends State<DetailScreen> {
       return const Center(child: Text('No trading volume data'));
     }
 
+    // Use price range for scaling instead of volume normalization
+    final prices = priceData.map((point) => point.price).toList();
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice;
+
     // Create volume data points for bar chart
     final volumeData = <BarChartGroupData>[];
-    final maxVolume = filteredTrades
-        .map((trade) => trade.securitiesTransacted)
-        .reduce((a, b) => a > b ? a : b);
+    final maxVolume = filteredTrades.isNotEmpty
+        ? filteredTrades
+              .map((trade) => trade.securitiesTransacted)
+              .reduce((a, b) => a > b ? a : b)
+        : 0;
 
     for (int i = 0; i < filteredTrades.length; i++) {
       final trade = filteredTrades[i];
       final volume = trade.securitiesTransacted.toDouble();
 
-      // Normalize volume for better visualization (scale to 0-100 range)
-      final normalizedVolume = maxVolume > 0
-          ? (volume / maxVolume) * 100.0
-          : 0.0;
+      // Scale volume based on price range for height, with safety checks
+      double scaledHeight;
+      if (maxVolume > 0 && priceRange > 0) {
+        scaledHeight = ((volume / maxVolume) * priceRange * 0.8) + minPrice;
+      } else if (maxVolume > 0) {
+        // If price range is 0, use a fixed scale
+        scaledHeight = (volume / maxVolume) * 100.0;
+      } else {
+        // If no volume data, use minimum price
+        scaledHeight = minPrice;
+      }
 
       volumeData.add(
         BarChartGroupData(
           x: i,
           barRods: [
             BarChartRodData(
-              toY: normalizedVolume,
+              toY: scaledHeight.isFinite ? scaledHeight : minPrice,
               color: trade.isBuy ? Colors.green : Colors.red,
               width: 6,
               borderRadius: trade.isBuy
@@ -6128,7 +6340,7 @@ class _DetailScreenState extends State<DetailScreen> {
     return BarChart(
       BarChartData(
         alignment: BarChartAlignment.spaceAround,
-        maxY: 110, // A bit more than 100 for padding
+        maxY: priceRange > 0 ? maxPrice + (priceRange * 0.2) : maxPrice + 20,
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
@@ -6186,15 +6398,17 @@ class _DetailScreenState extends State<DetailScreen> {
               showTitles: true,
               reservedSize: 60,
               getTitlesWidget: (value, meta) {
-                if (value == 0) return const Text('0');
-                final actualVolume = (value / 100) * maxVolume;
-                return Text(
-                  _formatNumber(actualVolume.toInt()),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 8,
-                  ),
-                );
+                // Show price values on left axis
+                if (value >= minPrice && value <= maxPrice && value.isFinite) {
+                  return Text(
+                    '\$${value.toStringAsFixed(0)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 8,
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
               },
             ),
           ),
@@ -6202,7 +6416,173 @@ class _DetailScreenState extends State<DetailScreen> {
         gridData: FlGridData(
           show: true,
           drawVerticalLine: false,
-          horizontalInterval: 25,
+          horizontalInterval: priceRange > 0
+              ? priceRange / 5
+              : 10, // Show 5 grid lines in price range or fallback
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: theme.colorScheme.outline.withOpacity(0.2),
+              strokeWidth: 1,
+            );
+          },
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: volumeData,
+      ),
+    );
+  }
+
+  Widget _buildVolumeChartWithSenateTrades(
+    ThemeData theme,
+    List<ChartDataPoint> priceData,
+    List<SenateTrading> filteredTrades,
+  ) {
+    if (filteredTrades.isEmpty) {
+      return const Center(child: Text('No trading volume data'));
+    }
+
+    // Parse amounts to numbers for calculation
+    final amounts = filteredTrades.map((trade) {
+      try {
+        return int.parse(trade.amount.replaceAll(',', '').replaceAll('\$', ''));
+      } catch (e) {
+        return 0;
+      }
+    }).toList();
+
+    // Use price range for scaling instead of volume normalization
+    final prices = priceData.map((point) => point.price).toList();
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice;
+
+    // Create volume data points for bar chart
+    final volumeData = <BarChartGroupData>[];
+    final maxVolume = amounts.isNotEmpty
+        ? amounts.reduce((a, b) => a > b ? a : b)
+        : 0;
+
+    for (int i = 0; i < filteredTrades.length; i++) {
+      final trade = filteredTrades[i];
+      final volume = amounts[i].toDouble();
+
+      // Scale volume based on price range for height, with safety checks
+      double scaledHeight;
+      if (maxVolume > 0 && priceRange > 0) {
+        scaledHeight = ((volume / maxVolume) * priceRange * 0.8) + minPrice;
+      } else if (maxVolume > 0) {
+        // If price range is 0, use a fixed scale
+        scaledHeight = (volume / maxVolume) * 100.0;
+      } else {
+        // If no volume data, use minimum price
+        scaledHeight = minPrice;
+      }
+
+      volumeData.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: scaledHeight.isFinite ? scaledHeight : minPrice,
+              color: trade.isBuy ? Colors.green : Colors.red,
+              width: 6,
+              borderRadius: trade.isBuy
+                  ? const BorderRadius.only(
+                      topLeft: Radius.circular(2),
+                      topRight: Radius.circular(2),
+                    )
+                  : const BorderRadius.only(
+                      bottomLeft: Radius.circular(2),
+                      bottomRight: Radius.circular(2),
+                    ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: priceRange > 0 ? maxPrice + (priceRange * 0.2) : maxPrice + 20,
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final trade = filteredTrades[group.x.toInt()];
+              final volume = amounts[group.x.toInt()];
+              return BarTooltipItem(
+                '${trade.fullName}\n${DateTime.parse(trade.transactionDate).month}/${DateTime.parse(trade.transactionDate).day}\nVolume: ${_formatNumber(volume)}\n${trade.type}',
+                TextStyle(color: theme.colorScheme.onSurface),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 &&
+                    index < filteredTrades.length &&
+                    index % 5 == 0) {
+                  // Show every 5th trade date
+                  try {
+                    final trade = filteredTrades[index];
+                    final date = DateTime.parse(trade.transactionDate);
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '${date.month}/${date.day}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 9,
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    return const SizedBox.shrink();
+                  }
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 60,
+              getTitlesWidget: (value, meta) {
+                // Show price values on left axis
+                if (value >= minPrice && value <= maxPrice && value.isFinite) {
+                  return Text(
+                    '\$${value.toStringAsFixed(0)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 8,
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: priceRange > 0
+              ? priceRange / 5
+              : 10, // Show 5 grid lines in price range or fallback
           getDrawingHorizontalLine: (value) {
             return FlLine(
               color: theme.colorScheme.outline.withOpacity(0.2),
@@ -6497,6 +6877,529 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  List<SenateTrading> _getFilteredSenateTrades() {
+    return _senateTrading.where((trade) {
+      // Transaction type filter
+      if (_senateTransactionFilter != 'All') {
+        if (_senateTransactionFilter == 'Buy' && !trade.isBuy) return false;
+        if (_senateTransactionFilter == 'Sell' && !trade.isSell) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  Widget _buildSenateTradingList(ThemeData theme) {
+    final filteredTrades = _getFilteredSenateTrades();
+    final displayTrades = _showMoreSenateTrades
+        ? filteredTrades.take(50).toList()
+        : filteredTrades.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Disclosures',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            if (filteredTrades.length > 3)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _showMoreSenateTrades = !_showMoreSenateTrades;
+                  });
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  _showMoreSenateTrades
+                      ? 'Show Less'
+                      : 'Show More (${filteredTrades.length - 3})',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ...displayTrades.map(
+          (trade) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: trade.getTransactionColor(),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        trade.fullName,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      trade.formattedTransactionDate,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${trade.office} • ${trade.district}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (trade.owner.isNotEmpty && trade.owner != '--') ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Owner: ${trade.owner}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${trade.type} • ${trade.formattedAmount}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: trade.getTransactionColor(),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (trade.comment.isNotEmpty && trade.comment != '--') ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Comment: ${trade.comment}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                if (trade.link.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  InkWell(
+                    onTap: () async {
+                      final url = Uri.parse(trade.link);
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(
+                          url,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                    child: Text(
+                      'View Disclosure →',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSenateTradingChart(ThemeData theme) {
+    return Container(
+      height: 400,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Stock Price with Senate Trading',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: FutureBuilder<List<ChartDataPoint>>(
+              future: _fetchStockPriceData(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Unable to load price data'));
+                }
+
+                return _buildPriceChartWithSenateDots(theme, snapshot.data!);
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Purchase',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Sale',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceChartWithSenateDots(
+    ThemeData theme,
+    List<ChartDataPoint> priceData,
+  ) {
+    if (priceData.isEmpty) {
+      return const Center(child: Text('No price data available'));
+    }
+
+    // Get filtered Senate trading data
+    final filteredTrades = _getFilteredSenateTrades();
+
+    // Convert price data to FlSpot
+    final spots = priceData.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value.price);
+    }).toList();
+
+    // Calculate min/max prices
+    final prices = priceData.map((p) => p.price);
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice;
+    final padding = priceRange * 0.1;
+
+    // Create additional spots for Senate trading dots
+    final senateSpots = <FlSpot>[];
+    for (final trade in filteredTrades) {
+      try {
+        final tradeDate = DateTime.parse(trade.transactionDate);
+        final dateKey = tradeDate.toIso8601String().split('T')[0];
+
+        // Find the closest price data point
+        final pricePoint = priceData.firstWhere(
+          (point) => point.date.toIso8601String().split('T')[0] == dateKey,
+          orElse: () => priceData
+              .last, // Use last available price if exact date not found
+        );
+
+        // Find the x position in the chart
+        final xIndex = priceData.indexOf(pricePoint);
+        if (xIndex >= 0) {
+          senateSpots.add(FlSpot(xIndex.toDouble(), pricePoint.price));
+        }
+      } catch (e) {
+        // Skip trades with invalid dates
+        continue;
+      }
+    }
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: priceRange / 4,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: theme.colorScheme.outline.withOpacity(0.1),
+              strokeWidth: 1,
+            );
+          },
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              interval: (priceData.length / 4).ceil().toDouble(),
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < priceData.length) {
+                  final date = priceData[index].date;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '${date.month}/${date.day}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: priceRange / 4,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  '\$${value.toStringAsFixed(2)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 10,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: (priceData.length - 1).toDouble(),
+        minY: minPrice - padding,
+        maxY: maxPrice + padding,
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: theme.colorScheme.primary,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: theme.colorScheme.primary.withOpacity(0.1),
+            ),
+          ),
+          // Add Senate trading dots as a separate line with dots only
+          LineChartBarData(
+            spots: senateSpots,
+            isCurved: false,
+            color: Colors.transparent, // Make line invisible
+            barWidth: 0,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                final trade =
+                    filteredTrades[index %
+                        filteredTrades.length]; // Get corresponding trade
+                return FlDotCirclePainter(
+                  radius: 4,
+                  color: trade.isBuy ? Colors.green : Colors.red,
+                  strokeWidth: 1,
+                  strokeColor: theme.colorScheme.surface,
+                );
+              },
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots
+                  .map((spot) {
+                    final index = spot.x.toInt();
+                    if (index >= 0 && index < priceData.length) {
+                      final point = priceData[index];
+                      return LineTooltipItem(
+                        '${point.date.month}/${point.date.day}: \$${point.price.toStringAsFixed(2)}',
+                        TextStyle(color: theme.colorScheme.onSurface),
+                      );
+                    }
+                    return null;
+                  })
+                  .whereType<LineTooltipItem>()
+                  .toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSenateTradingFilters(ThemeData theme) {
+    return Column(
+      children: [
+        // Toggle filters visibility
+        Row(
+          children: [
+            Text(
+              'Filters',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _showSenateFilters = !_showSenateFilters;
+                });
+              },
+              icon: Icon(
+                _showSenateFilters ? Icons.expand_less : Icons.expand_more,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+        if (_showSenateFilters) ...[
+          const SizedBox(height: 12),
+          // Transaction type filter only
+          DropdownButtonFormField<String>(
+            value: _senateTransactionFilter,
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _senateTransactionFilter = value;
+                });
+              }
+            },
+            decoration: InputDecoration(
+              labelText: 'Show Transactions',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+            ),
+            items: ['All', 'Buy', 'Sell'].map((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: type == 'Buy'
+                            ? Colors.green
+                            : type == 'Sell'
+                            ? Colors.red
+                            : Colors.grey,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      type == 'Buy'
+                          ? 'Purchase'
+                          : type == 'Sell'
+                          ? 'Sale'
+                          : type,
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          // Results count
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '${_getFilteredSenateTrades().length} disclosures',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   String _formatCurrency(double amount) {
     if (amount >= 1000000000) {
       return '\$${(amount / 1000000000).toStringAsFixed(1)}B';
@@ -6658,6 +7561,7 @@ class _DetailScreenState extends State<DetailScreen> {
         _fetchFinancialScores(),
         _fetchSectorPerformance(),
         _fetchInsiderTrading(),
+        _fetchSenateTrading(),
         _fetchRevenueSegmentation(),
         _fetchCompanyProfile(),
       ]);
@@ -6816,6 +7720,17 @@ class _DetailScreenState extends State<DetailScreen> {
       );
     } catch (e) {
       debugPrint('Error fetching insider trading: $e');
+    }
+  }
+
+  Future<void> _fetchSenateTrading() async {
+    if (_stockSymbol == null) return;
+
+    try {
+      final apiService = ApiService();
+      _senateTrading = await apiService.getSenateTrading(_stockSymbol!);
+    } catch (e) {
+      debugPrint('Error fetching senate trading: $e');
     }
   }
 

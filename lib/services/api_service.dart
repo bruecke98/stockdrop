@@ -781,6 +781,49 @@ class ApiService {
     }
   }
 
+  /// Get senate trading data
+  /// Returns congressional trading disclosures for the specified symbol
+  Future<List<SenateTrading>> getSenateTrading(String symbol) async {
+    try {
+      debugPrint('🏛️ Fetching senate trading data for $symbol...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/senate-trades?symbol=$symbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Senate trading data not available for $symbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No senate trading data available for $symbol');
+        return [];
+      }
+
+      final senateTrades = data
+          .map((item) => SenateTrading.fromJson(item))
+          .toList();
+
+      // Sort by transaction date (most recent first)
+      senateTrades.sort(
+        (a, b) => b.transactionDate.compareTo(a.transactionDate),
+      );
+
+      debugPrint(
+        '🏛️ Loaded ${senateTrades.length} senate trading records for $symbol',
+      );
+      return senateTrades;
+    } catch (e) {
+      debugPrint('❌ Error fetching senate trading data: $e');
+      return [];
+    }
+  }
+
   /// Get revenue product segmentation data
   /// Returns revenue breakdown by product categories for the specified symbol
   Future<List<RevenueSegmentation>> getRevenueProductSegmentation(
@@ -2918,6 +2961,128 @@ class InsiderTrading {
   @override
   String toString() {
     return 'InsiderTrading(symbol: $symbol, reportingName: $reportingName, transactionType: $acquisitionOrDisposition, securitiesTransacted: $securitiesTransacted)';
+  }
+}
+
+class SenateTrading {
+  final String symbol;
+  final String disclosureDate;
+  final String transactionDate;
+  final String firstName;
+  final String lastName;
+  final String office;
+  final String district;
+  final String owner;
+  final String assetDescription;
+  final String assetType;
+  final String type;
+  final String amount;
+  final String capitalGainsOver200USD;
+  final String comment;
+  final String link;
+
+  SenateTrading({
+    required this.symbol,
+    required this.disclosureDate,
+    required this.transactionDate,
+    required this.firstName,
+    required this.lastName,
+    required this.office,
+    required this.district,
+    required this.owner,
+    required this.assetDescription,
+    required this.assetType,
+    required this.type,
+    required this.amount,
+    required this.capitalGainsOver200USD,
+    required this.comment,
+    required this.link,
+  });
+
+  factory SenateTrading.fromJson(Map<String, dynamic> json) {
+    return SenateTrading(
+      symbol: json['symbol']?.toString() ?? '',
+      disclosureDate: json['disclosureDate']?.toString() ?? '',
+      transactionDate: json['transactionDate']?.toString() ?? '',
+      firstName: json['firstName']?.toString() ?? '',
+      lastName: json['lastName']?.toString() ?? '',
+      office: json['office']?.toString() ?? '',
+      district: json['district']?.toString() ?? '',
+      owner: json['owner']?.toString() ?? '',
+      assetDescription: json['assetDescription']?.toString() ?? '',
+      assetType: json['assetType']?.toString() ?? '',
+      type: json['type']?.toString() ?? '',
+      amount: json['amount']?.toString() ?? '',
+      capitalGainsOver200USD: json['capitalGainsOver200USD']?.toString() ?? '',
+      comment: json['comment']?.toString() ?? '',
+      link: json['link']?.toString() ?? '',
+    );
+  }
+
+  /// Get full name
+  String get fullName => '$firstName $lastName'.trim();
+
+  /// Check if this is a buy/purchase transaction
+  bool get isBuy =>
+      type.toLowerCase().contains('purchase') ||
+      type.toLowerCase().contains('buy');
+
+  /// Check if this is a sell/sale transaction
+  bool get isSell =>
+      type.toLowerCase().contains('sale') ||
+      type.toLowerCase().contains('sell');
+
+  /// Get transaction color for charts
+  Color getTransactionColor() {
+    if (isBuy) return Colors.green;
+    if (isSell) return Colors.red;
+    return Colors.grey;
+  }
+
+  /// Get formatted transaction date
+  String get formattedTransactionDate {
+    try {
+      final date = DateTime.parse(transactionDate);
+      return '${date.month}/${date.day}/${date.year}';
+    } catch (e) {
+      return transactionDate;
+    }
+  }
+
+  /// Get formatted disclosure date
+  String get formattedDisclosureDate {
+    try {
+      final date = DateTime.parse(disclosureDate);
+      return '${date.month}/${date.day}/${date.year}';
+    } catch (e) {
+      return disclosureDate;
+    }
+  }
+
+  /// Parse amount range to get approximate value
+  double get approximateAmount {
+    final amountStr = amount.replaceAll('\$', '').replaceAll(',', '');
+    if (amountStr.contains('-')) {
+      final parts = amountStr.split('-');
+      if (parts.length == 2) {
+        final min = double.tryParse(parts[0].trim()) ?? 0;
+        final max = double.tryParse(parts[1].trim()) ?? 0;
+        return (min + max) / 2; // Return midpoint
+      }
+    }
+    // Try to parse as single number
+    return double.tryParse(amountStr) ?? 0;
+  }
+
+  /// Format amount for display
+  String get formattedAmount {
+    if (amount.isEmpty || amount == '--') return 'N/A';
+    return amount;
+  }
+
+  @override
+  String toString() {
+    return 'SenateTrading(symbol: $symbol, name: $fullName, type: $type, amount: $amount)';
   }
 }
 
