@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/enhanced_stock_card.dart';
 
 /// Favorites screen for StockDrop app
 /// Displays user's favorited stocks with real-time updates from Supabase
@@ -78,92 +79,29 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         padding: const EdgeInsets.all(16),
         itemBuilder: (context, index) {
           final stock = _favoriteStocks[index];
-          final isPositive = (stock.changesPercentage ?? 0) >= 0;
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
+          return Stack(
+            children: [
+              EnhancedStockCard(
+                stock: stock,
+                onTap: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/detail',
+                    arguments: {'symbol': stock.symbol},
+                  );
+                },
               ),
-              leading: CircleAvatar(
-                backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-                child: Text(
-                  stock.symbol.length >= 2
-                      ? stock.symbol.substring(0, 2).toUpperCase()
-                      : stock.symbol.toUpperCase(),
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.delete),
+                  color: theme.colorScheme.error,
+                  onPressed: () => _showDeleteConfirmation(stock),
                 ),
               ),
-              title: Text(
-                stock.symbol,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              subtitle: Text(
-                stock.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall,
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        stock.price != null
-                            ? '\$${stock.price!.toStringAsFixed(2)}'
-                            : 'N/A',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (stock.changesPercentage != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isPositive ? Colors.green : Colors.red,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${isPositive ? '+' : ''}${stock.changesPercentage!.toStringAsFixed(2)}%',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.delete),
-                    color: theme.colorScheme.error,
-                    onPressed: () => _showDeleteConfirmation(stock),
-                  ),
-                ],
-              ),
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/detail',
-                  arguments: {'symbol': stock.symbol},
-                );
-              },
-            ),
+            ],
           );
         },
       ),
@@ -416,18 +354,40 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 }
 
 /// Model class for favorite stock with market data
-class FavoriteStock {
-  final String symbol;
-  final String name;
-  final double? price;
-  final double? changesPercentage;
+class FavoriteStock implements StockData {
+  @override
+  String get symbol => _symbol;
+  @override
+  String get name => _name;
+  @override
+  double get price => _price;
+  @override
+  double get changePercentValue => _changePercentValue;
+  @override
+  double? get beta => null;
+  @override
+  String? get sector => null;
+  @override
+  double? get marketCap => null;
+  @override
+  String? get exchangeShortName => null;
+
+  double? get changesPercentage => _changePercentValue;
+
+  final String _symbol;
+  final String _name;
+  final double _price;
+  final double _changePercentValue;
 
   FavoriteStock({
-    required this.symbol,
-    required this.name,
-    this.price,
-    this.changesPercentage,
-  });
+    required String symbol,
+    required String name,
+    required double? price,
+    double? changesPercentage,
+  }) : _symbol = symbol,
+       _name = name,
+       _price = price ?? 0.0,
+       _changePercentValue = changesPercentage ?? 0.0;
 
   factory FavoriteStock.fromJson(Map<String, dynamic> json) {
     return FavoriteStock(

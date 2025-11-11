@@ -62,227 +62,232 @@ class EnhancedStockCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Stock symbol and name section
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Symbol and logo
-                    Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(7),
-                            child: Image.network(
-                              'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: colorScheme.error.withOpacity(0.1),
-                                  child: Center(
-                                    child: Text(
-                                      stock.symbol
-                                          .substring(0, 2)
-                                          .toUpperCase(),
-                                      style: TextStyle(
-                                        color: colorScheme.error,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
+        child: Stack(
+          children: [
+            // Main card content
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Main row with symbol/name and price/change
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Symbol and logo
+                            Row(
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: Image.network(
+                                      'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return Container(
+                                              color: colorScheme.error
+                                                  .withOpacity(0.1),
+                                              child: Center(
+                                                child: Text(
+                                                  stock.symbol
+                                                      .substring(0, 2)
+                                                      .toUpperCase(),
+                                                  style: TextStyle(
+                                                    color: colorScheme.error,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stock.symbol,
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                stock.name,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        stock.symbol,
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        stock.name,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // Beta, sector, and market cap row (exchange moved to top right)
+                            Row(
+                              children: [
+                                // Beta display
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.red,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'β1.23',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // Sector display
+                                Expanded(
+                                  child: Text(
+                                    'Technology',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                // Market cap category
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.blue,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Large Cap',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Beta, sector, exchange, and market cap row
-                    Row(
-                      children: [
-                        // Beta display
-                        if (stock.beta != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getBetaColor(
-                                stock.beta!,
-                              ).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _getBetaColor(stock.beta!),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              'β${stock.beta!.toStringAsFixed(2)}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: _getBetaColor(stock.beta!),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-
-                        // Exchange display
-                        if (stock.exchangeShortName != null &&
-                            stock.exchangeShortName!.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colorScheme.secondary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: colorScheme.secondary,
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              stock.exchangeShortName!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.secondary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-
-                        // Sector display
-                        if (stock.sector != null &&
-                            stock.sector!.isNotEmpty) ...[
-                          Expanded(
-                            child: Text(
-                              stock.sector!,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-
-                        // Market cap category
-                        if (stock.marketCap != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getMarketCapColor(stock.marketCap!).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: _getMarketCapColor(stock.marketCap!),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              _getMarketCapCategory(stock.marketCap!),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: _getMarketCapColor(stock.marketCap!),
-                                fontWeight: FontWeight.w500,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Price and change section
-              Expanded(
-                flex: 1,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      priceText,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
+
+                      const SizedBox(width: 12),
+
+                      // Price and change section
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              priceText,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: changeColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                percentageText,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: changeColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ), // Exchange badge positioned at top right
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
+                        horizontal: 6,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: changeColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: colorScheme.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: colorScheme.primary,
+                          width: 1,
+                        ),
                       ),
                       child: Text(
-                        percentageText,
+                        _getExchangeAbbreviation(
+                          stock.exchangeShortName ?? 'NYSE',
+                        ),
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: changeColor,
-                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 10,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -346,6 +351,55 @@ class EnhancedStockCard extends StatelessWidget {
       return Colors.red;
     }
   }
+
+  /// Get abbreviated exchange name
+  String _getExchangeAbbreviation(String exchangeName) {
+    // Handle common exchange names
+    switch (exchangeName.toUpperCase()) {
+      case 'NASDAQ':
+        return 'NAS';
+      case 'NEW YORK STOCK EXCHANGE':
+      case 'NYSE':
+        return 'NYSE';
+      case 'AMERICAN STOCK EXCHANGE':
+      case 'AMEX':
+        return 'AMEX';
+      case 'OTC MARKETS':
+      case 'OTC':
+        return 'OTC';
+      case 'TORONTO STOCK EXCHANGE':
+      case 'TSX':
+        return 'TSX';
+      case 'LONDON STOCK EXCHANGE':
+      case 'LSE':
+        return 'LSE';
+      case 'SHANGHAI STOCK EXCHANGE':
+      case 'SSE':
+        return 'SSE';
+      case 'HONG KONG EXCHANGES AND CLEARING':
+      case 'HKEX':
+        return 'HKEX';
+      case 'TOKYO STOCK EXCHANGE':
+      case 'TSE':
+        return 'TSE';
+      default:
+        // For unknown exchanges, take first 3-4 characters or split by space
+        if (exchangeName.length <= 4) {
+          return exchangeName.toUpperCase();
+        }
+        final parts = exchangeName.split(' ');
+        if (parts.length >= 2) {
+          final first = parts[0].length >= 2
+              ? parts[0].substring(0, 2)
+              : parts[0];
+          final second = parts[1].length >= 2
+              ? parts[1].substring(0, 2)
+              : parts[1];
+          return '$first$second'.toUpperCase();
+        }
+        return exchangeName.substring(0, 4).toUpperCase();
+    }
+  }
 }
 
 /// Adapter classes to make existing models implement StockData interface
@@ -378,7 +432,7 @@ class StockLossAdapter implements StockData {
   double? get marketCap => stock.marketCap;
 
   @override
-  String? get exchangeShortName => null; // StockLoss doesn't have exchange info
+  String? get exchangeShortName => stock.exchange;
 }
 
 /// Adapter for FilteredStock model
@@ -409,7 +463,7 @@ class FilteredStockAdapter implements StockData {
   double? get marketCap => stock.marketCap;
 
   @override
-  String? get exchangeShortName => null; // FilteredStock doesn't have exchange info
+  String? get exchangeShortName => stock.exchange;
 }
 
 /// Adapter for Stock model

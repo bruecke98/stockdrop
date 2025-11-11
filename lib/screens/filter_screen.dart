@@ -863,6 +863,7 @@ class FilteredStock {
   final double? beta;
   final String? sector;
   final double? marketCap;
+  final String? exchange;
 
   FilteredStock({
     required this.symbol,
@@ -873,6 +874,7 @@ class FilteredStock {
     this.beta,
     this.sector,
     this.marketCap,
+    this.exchange,
   });
 
   factory FilteredStock.fromJson(Map<String, dynamic> json) {
@@ -885,6 +887,7 @@ class FilteredStock {
       beta: (json['beta'] as num?)?.toDouble(),
       sector: json['sector']?.toString(),
       marketCap: (json['marketCap'] as num?)?.toDouble(),
+      exchange: json['exchange']?.toString(),
     );
   }
 }

@@ -822,6 +822,51 @@ class ApiService {
     }
   }
 
+  /// Get revenue geographic segmentation data
+  /// Returns revenue breakdown by geography/region for the specified symbol
+  Future<List<RevenueSegmentation>> getRevenueGeographicSegmentation(
+    String symbol,
+  ) async {
+    try {
+      debugPrint('📊 Fetching revenue geographic segmentation for $symbol...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/revenue-geographic-segmentation'
+        '?symbol=$symbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          '⚠️ Revenue geographic segmentation data not available for $symbol',
+        );
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint(
+          '⚠️ No revenue geographic segmentation data available for $symbol',
+        );
+        return [];
+      }
+
+      final segmentation = data
+          .map((item) => RevenueSegmentation.fromJson(item))
+          .toList();
+
+      debugPrint(
+        '📊 Loaded ${segmentation.length} revenue geographic segmentation records for $symbol',
+      );
+      return segmentation;
+    } catch (e) {
+      debugPrint('❌ Error fetching revenue geographic segmentation data: $e');
+      return [];
+    }
+  }
+
   // ==================== LEGACY METHODS (MAINTAINED FOR COMPATIBILITY) ====================
 
   /// Get single stock data (legacy method)

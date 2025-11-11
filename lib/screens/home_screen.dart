@@ -960,6 +960,15 @@ class _HomeScreenState extends State<HomeScreen> {
         throw Exception('No stocks found in screener');
       }
 
+      // Create a map of screener data by symbol for easy lookup
+      final Map<String, dynamic> screenerMap = {};
+      for (final item in screenerData) {
+        final symbol = item['symbol']?.toString();
+        if (symbol != null) {
+          screenerMap[symbol] = item;
+        }
+      }
+
       // Step 2: Get symbols from screener results
       final symbols = screenerData
           .map((item) => item['symbol']?.toString())
@@ -987,8 +996,20 @@ class _HomeScreenState extends State<HomeScreen> {
       final List<dynamic> quotesData = json.decode(quotesResponse.body);
       print('DEBUG: Quotes data length: ${quotesData.length}');
 
-      // Step 4: Filter for valid stocks and sort by worst performance
-      final validStocks = quotesData.where((item) {
+      // Step 4: Merge screener and quotes data
+      final mergedStocks = quotesData.map((quote) {
+        final symbol = quote['symbol']?.toString();
+        final screenerInfo = symbol != null ? screenerMap[symbol] : null;
+
+        // Merge the data, with quotes taking precedence for price data
+        return <String, dynamic>{
+          ...?screenerInfo, // Spread screener data first (beta, sector, marketCap, exchange)
+          ...quote, // Spread quotes data (price, changesPercentage, volume)
+        };
+      }).toList();
+
+      // Step 5: Filter for valid stocks and sort by worst performance
+      final validStocks = mergedStocks.where((item) {
         final price = (item['price'] as num?)?.toDouble() ?? 0.0;
         final volume = (item['volume'] as num?)?.toDouble() ?? 0.0;
 
@@ -1114,6 +1135,7 @@ class StockLoss {
   final double? beta;
   final String? sector;
   final double? marketCap;
+  final String? exchange;
 
   StockLoss({
     required this.symbol,
@@ -1124,6 +1146,7 @@ class StockLoss {
     this.beta,
     this.sector,
     this.marketCap,
+    this.exchange,
   });
 
   factory StockLoss.fromJson(Map<String, dynamic> json) {
@@ -1136,6 +1159,7 @@ class StockLoss {
       beta: (json['beta'] as num?)?.toDouble(),
       sector: json['sector']?.toString(),
       marketCap: (json['marketCap'] as num?)?.toDouble(),
+      exchange: json['exchange']?.toString(),
     );
   }
 }
