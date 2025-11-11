@@ -2844,10 +2844,55 @@ class InsiderTrading {
     return '$sign${securitiesTransacted.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
   }
 
-  /// Format price
-  String formatPrice() {
-    if (price == 0) return 'N/A';
-    return '\$${price.toStringAsFixed(2)}';
+  /// Format price with transaction type differentiation
+  String formatPriceWithType() {
+    if (price > 0) {
+      return '\$${price.toStringAsFixed(2)}';
+    }
+
+    // Check transaction type for special cases
+    final type = transactionType.toLowerCase();
+    if (type.contains('award') || type.contains('grant')) {
+      return 'Award/Grant';
+    } else if (type.contains('exempt') || type.contains('exemption')) {
+      return 'Exempt';
+    } else if (type.contains('in-kind') || type.contains('inkind')) {
+      return 'In-Kind';
+    } else if (type.contains('gift') || type.contains('donation')) {
+      return 'Gift';
+    } else if (type.contains('exercise')) {
+      return 'Exercise';
+    } else if (type.contains('conversion') || type.contains('convert')) {
+      return 'Conversion';
+    } else if (price == 0 && (isBuy || isSell)) {
+      return 'No Price';
+    }
+
+    return 'N/A';
+  }
+
+  /// Get transaction type description
+  String getTransactionTypeDescription() {
+    final type = transactionType.toLowerCase();
+    if (type.contains('award') || type.contains('grant')) {
+      return 'Stock Award/Grant';
+    } else if (type.contains('exempt') || type.contains('exemption')) {
+      return 'Exempt Transaction';
+    } else if (type.contains('in-kind') || type.contains('inkind')) {
+      return 'In-Kind Transfer';
+    } else if (type.contains('gift') || type.contains('donation')) {
+      return 'Gift/Donation';
+    } else if (type.contains('exercise')) {
+      return 'Option Exercise';
+    } else if (type.contains('conversion') || type.contains('convert')) {
+      return 'Security Conversion';
+    } else if (price == 0 && isBuy) {
+      return 'Purchase (No Price)';
+    } else if (price == 0 && isSell) {
+      return 'Sale (No Price)';
+    }
+
+    return transactionType.isNotEmpty ? transactionType : 'Regular Transaction';
   }
 
   /// Get formatted transaction date

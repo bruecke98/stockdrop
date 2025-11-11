@@ -60,6 +60,9 @@ class _DetailScreenState extends State<DetailScreen> {
   bool _isTogglingFavorite = false;
   bool _isDescriptionExpanded = false;
   bool _isDcfExtendedView = false;
+  bool _showMoreInsiderTrades = false;
+  String _insiderTransactionFilter = 'All'; // All, Buy, Sell
+  bool _showInsiderFilters = false;
   String? _error;
   String? _stockSymbol;
 
@@ -931,7 +934,9 @@ class _DetailScreenState extends State<DetailScreen> {
                     // fetch geographic data if needed
                     if (_revenueGeoSegmentation.isEmpty) {
                       await _fetchRevenueGeographicSegmentation();
-                      setState(() {});
+                      if (mounted) {
+                        setState(() {});
+                      }
                     }
                   }
                 },
@@ -5757,6 +5762,8 @@ class _DetailScreenState extends State<DetailScreen> {
           const SizedBox(height: 20),
           _buildInsiderTradingChart(theme),
           const SizedBox(height: 20),
+          _buildInsiderTradingFilters(theme),
+          const SizedBox(height: 16),
           _buildInsiderTradingList(theme),
         ],
       ),
@@ -5764,115 +5771,8 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _buildInsiderTradingChart(ThemeData theme) {
-    return FutureBuilder<Map<String, double>>(
-      future: _fetchHistoricalPricesForInsiderDates(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            height: 200,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (snapshot.hasError || !snapshot.hasData) {
-          // Fallback to current price if historical data fails
-          return _buildInsiderTradingChartWithPrices(theme, {});
-        }
-
-        return _buildInsiderTradingChartWithPrices(theme, snapshot.data!);
-      },
-    );
-  }
-
-  Future<Map<String, double>> _fetchHistoricalPricesForInsiderDates() async {
-    final recentTrades = _insiderTrading.take(50).toList();
-    if (recentTrades.isEmpty || _stockSymbol == null) {
-      return {};
-    }
-
-    // Get unique dates from insider trading
-    final dates =
-        recentTrades.map((trade) => trade.transactionDate).toSet().toList()
-          ..sort();
-
-    if (dates.isEmpty) return {};
-
-    try {
-      // Fetch historical data from FMP API
-      final apiKey = dotenv.env['FMP_API_KEY'];
-      if (apiKey == null) return {};
-
-      final url =
-          'https://financialmodelingprep.com/api/v3/historical-price-full/$_stockSymbol?apikey=$apiKey';
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data is Map && data.containsKey('historical')) {
-          final historicalData = data['historical'] as List;
-
-          // Create a map of date -> price
-          final priceMap = <String, double>{};
-          for (final item in historicalData) {
-            final date = item['date'] as String?;
-            final close = item['close'];
-            if (date != null && close != null) {
-              priceMap[date] = (close as num).toDouble();
-            }
-          }
-
-          // Match insider trading dates to historical prices
-          final result = <String, double>{};
-          for (final tradeDate in dates) {
-            // Try exact match first
-            if (priceMap.containsKey(tradeDate)) {
-              result[tradeDate] = priceMap[tradeDate]!;
-            } else {
-              // If no exact match, use current price as fallback
-              result[tradeDate] = _stockDetail?.price ?? 0.0;
-            }
-          }
-
-          return result;
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching historical prices: $e');
-    }
-
-    // Fallback: use current price for all dates
-    final currentPrice = _stockDetail?.price ?? 0.0;
-    return {for (final date in dates) date: currentPrice};
-  }
-
-  Widget _buildInsiderTradingChartWithPrices(
-    ThemeData theme,
-    Map<String, double> priceData,
-  ) {
-    // Get the last 30 days of insider trading activity
-    final recentTrades = _insiderTrading.take(50).toList();
-
-    if (recentTrades.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // Group trades by date for the chart
-    final tradesByDate = <String, List<InsiderTrading>>{};
-    for (final trade in recentTrades) {
-      final date = trade.transactionDate;
-      tradesByDate.putIfAbsent(date, () => []).add(trade);
-    }
-
-    // Sort dates chronologically
-    final sortedDates = tradesByDate.keys.toList()..sort();
-
     return Container(
-      height: 200,
+      height: 400, // Increased height to accommodate both charts
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceVariant.withOpacity(0.1),
@@ -5882,7 +5782,7 @@ class _DetailScreenState extends State<DetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Stock Price During Insider Activity',
+            'Stock Price & Volume with Insider Trading',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.primary,
@@ -5890,132 +5790,76 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
           const SizedBox(height: 12),
           Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: true,
-                  horizontalInterval: 10,
-                  verticalInterval: 1.0,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: theme.colorScheme.outline.withOpacity(0.3),
-                      strokeWidth: 1,
-                    );
-                  },
-                  getDrawingVerticalLine: (value) {
-                    return FlLine(
-                      color: theme.colorScheme.outline.withOpacity(0.3),
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  topTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index >= 0 &&
-                            index < sortedDates.length &&
-                            index % 3 == 0) {
-                          try {
-                            final date = DateTime.parse(sortedDates[index]);
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                '${date.month}/${date.day}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                  fontSize: 9,
-                                ),
-                              ),
-                            );
-                          } catch (e) {
-                            return const SizedBox.shrink();
-                          }
-                        }
-                        return const SizedBox.shrink();
-                      },
+            child: FutureBuilder<List<ChartDataPoint>>(
+              future: _fetchStockPriceData(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Unable to load price data'));
+                }
+
+                final priceData = snapshot.data!;
+                final filteredTrades = _getFilteredInsiderTrades();
+
+                return Column(
+                  children: [
+                    // Price chart (top half)
+                    Expanded(
+                      flex: 3,
+                      child: _buildPriceChartWithInsiderDots(theme, priceData),
                     ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 20,
-                      reservedSize: 50,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '\$${value.toStringAsFixed(0)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 9,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(
-                  show: true,
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withOpacity(0.3),
-                  ),
-                ),
-                minX: 0,
-                maxX: (sortedDates.length - 1).toDouble(),
-                minY: null,
-                maxY: null,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(
-                      sortedDates.length,
-                      (index) => FlSpot(
-                        index.toDouble(),
-                        priceData[sortedDates[index]] ??
-                            _stockDetail?.price ??
-                            0.0,
+                    const SizedBox(height: 8),
+                    // Volume chart (bottom half)
+                    Expanded(
+                      flex: 2,
+                      child: _buildVolumeChartWithInsiderTrades(
+                        theme,
+                        priceData,
+                        filteredTrades,
                       ),
                     ),
-                    isCurved: true,
-                    color: theme.colorScheme.primary,
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(
-                      show: true,
-                      getDotPainter: (spot, percent, barData, index) {
-                        return FlDotCirclePainter(
-                          radius: 4,
-                          color: theme.colorScheme.primary,
-                          strokeWidth: 2,
-                          strokeColor: theme.colorScheme.surface,
-                        );
-                      },
-                    ),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: theme.colorScheme.primary.withOpacity(0.1),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
               Text(
-                'Historical stock price on insider trading dates',
+                'Buy',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Colors.red,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Sell',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                   fontSize: 11,
@@ -6028,21 +5872,502 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Future<List<ChartDataPoint>> _fetchStockPriceData() async {
+    if (_stockSymbol == null) return [];
+
+    try {
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null) return [];
+
+      // Fetch 1 year of daily data for better chart visibility
+      final url =
+          'https://financialmodelingprep.com/api/v3/historical-price-full/$_stockSymbol?from=${DateTime.now().subtract(const Duration(days: 365)).toIso8601String().split('T')[0]}&to=${DateTime.now().toIso8601String().split('T')[0]}&apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map && data.containsKey('historical')) {
+          final historicalData = data['historical'] as List;
+          return historicalData
+              .map((item) => ChartDataPoint.fromJson(item))
+              .toList()
+            ..sort(
+              (a, b) => a.date.compareTo(b.date),
+            ); // Sort by date ascending
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching stock price data: $e');
+    }
+
+    return [];
+  }
+
+  Widget _buildPriceChartWithInsiderDots(
+    ThemeData theme,
+    List<ChartDataPoint> priceData,
+  ) {
+    if (priceData.isEmpty) {
+      return const Center(child: Text('No price data available'));
+    }
+
+    // Get filtered insider trading data
+    final filteredTrades = _getFilteredInsiderTrades();
+
+    // Convert price data to FlSpot
+    final spots = priceData.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value.price);
+    }).toList();
+
+    // Calculate min/max prices
+    final prices = priceData.map((p) => p.price);
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice;
+    final padding = priceRange * 0.1;
+
+    // Create additional spots for insider trading dots
+    final insiderSpots = <FlSpot>[];
+    for (final trade in filteredTrades) {
+      try {
+        final tradeDate = DateTime.parse(trade.transactionDate);
+        final dateKey = tradeDate.toIso8601String().split('T')[0];
+
+        // Find the closest price data point
+        final pricePoint = priceData.firstWhere(
+          (point) => point.date.toIso8601String().split('T')[0] == dateKey,
+          orElse: () => priceData
+              .last, // Use last available price if exact date not found
+        );
+
+        // Find the x position in the chart
+        final xIndex = priceData.indexOf(pricePoint);
+        if (xIndex >= 0) {
+          insiderSpots.add(FlSpot(xIndex.toDouble(), pricePoint.price));
+        }
+      } catch (e) {
+        // Skip trades with invalid dates
+        continue;
+      }
+    }
+
+    return LineChart(
+      LineChartData(
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: priceRange / 4,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: theme.colorScheme.outline.withOpacity(0.1),
+              strokeWidth: 1,
+            );
+          },
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              interval: (priceData.length / 4).ceil().toDouble(),
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < priceData.length) {
+                  final date = priceData[index].date;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '${date.month}/${date.day}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 10,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: priceRange / 4,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) {
+                return Text(
+                  '\$${value.toStringAsFixed(2)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 10,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        minX: 0,
+        maxX: (priceData.length - 1).toDouble(),
+        minY: minPrice - padding,
+        maxY: maxPrice + padding,
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: theme.colorScheme.primary,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              color: theme.colorScheme.primary.withOpacity(0.1),
+            ),
+          ),
+          // Add insider trading dots as a separate line with dots only
+          LineChartBarData(
+            spots: insiderSpots,
+            isCurved: false,
+            color: Colors.transparent, // Make line invisible
+            barWidth: 0,
+            dotData: FlDotData(
+              show: true,
+              getDotPainter: (spot, percent, barData, index) {
+                final trade =
+                    filteredTrades[index %
+                        filteredTrades.length]; // Get corresponding trade
+                return FlDotCirclePainter(
+                  radius: 4,
+                  color: trade.isBuy ? Colors.green : Colors.red,
+                  strokeWidth: 1,
+                  strokeColor: theme.colorScheme.surface,
+                );
+              },
+            ),
+          ),
+        ],
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots
+                  .map((spot) {
+                    final index = spot.x.toInt();
+                    if (index >= 0 && index < priceData.length) {
+                      final point = priceData[index];
+                      return LineTooltipItem(
+                        '${point.date.month}/${point.date.day}: \$${point.price.toStringAsFixed(2)}',
+                        TextStyle(color: theme.colorScheme.onSurface),
+                      );
+                    }
+                    return null;
+                  })
+                  .whereType<LineTooltipItem>()
+                  .toList();
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolumeChartWithInsiderTrades(
+    ThemeData theme,
+    List<ChartDataPoint> priceData,
+    List<InsiderTrading> filteredTrades,
+  ) {
+    if (filteredTrades.isEmpty) {
+      return const Center(child: Text('No trading volume data'));
+    }
+
+    // Create volume data points for bar chart
+    final volumeData = <BarChartGroupData>[];
+    final maxVolume = filteredTrades
+        .map((trade) => trade.securitiesTransacted)
+        .reduce((a, b) => a > b ? a : b);
+
+    for (int i = 0; i < filteredTrades.length; i++) {
+      final trade = filteredTrades[i];
+      final volume = trade.securitiesTransacted.toDouble();
+
+      // Normalize volume for better visualization (scale to 0-100 range)
+      final normalizedVolume = maxVolume > 0
+          ? (volume / maxVolume) * 100.0
+          : 0.0;
+
+      volumeData.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: normalizedVolume,
+              color: trade.isBuy ? Colors.green : Colors.red,
+              width: 6,
+              borderRadius: trade.isBuy
+                  ? const BorderRadius.only(
+                      topLeft: Radius.circular(2),
+                      topRight: Radius.circular(2),
+                    )
+                  : const BorderRadius.only(
+                      bottomLeft: Radius.circular(2),
+                      bottomRight: Radius.circular(2),
+                    ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY: 110, // A bit more than 100 for padding
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final trade = filteredTrades[group.x.toInt()];
+              final volume = trade.securitiesTransacted;
+              return BarTooltipItem(
+                '${trade.reportingName}\n${DateTime.parse(trade.transactionDate).month}/${DateTime.parse(trade.transactionDate).day}\nVolume: ${_formatNumber(volume)}\n${trade.isBuy ? 'Buy' : 'Sell'}',
+                TextStyle(color: theme.colorScheme.onSurface),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 30,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 &&
+                    index < filteredTrades.length &&
+                    index % 5 == 0) {
+                  // Show every 5th trade date
+                  try {
+                    final trade = filteredTrades[index];
+                    final date = DateTime.parse(trade.transactionDate);
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '${date.month}/${date.day}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 9,
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    return const SizedBox.shrink();
+                  }
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 60,
+              getTitlesWidget: (value, meta) {
+                if (value == 0) return const Text('0');
+                final actualVolume = (value / 100) * maxVolume;
+                return Text(
+                  _formatNumber(actualVolume.toInt()),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 8,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: 25,
+          getDrawingHorizontalLine: (value) {
+            return FlLine(
+              color: theme.colorScheme.outline.withOpacity(0.2),
+              strokeWidth: 1,
+            );
+          },
+        ),
+        borderData: FlBorderData(show: false),
+        barGroups: volumeData,
+      ),
+    );
+  }
+
+  List<InsiderTrading> _getFilteredInsiderTrades() {
+    return _insiderTrading.where((trade) {
+      // Transaction type filter
+      if (_insiderTransactionFilter != 'All') {
+        if (_insiderTransactionFilter == 'Buy' && !trade.isBuy) return false;
+        if (_insiderTransactionFilter == 'Sell' && !trade.isSell) return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  Widget _buildInsiderTradingFilters(ThemeData theme) {
+    return Column(
+      children: [
+        // Toggle filters visibility
+        Row(
+          children: [
+            Text(
+              'Filters',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              onPressed: () {
+                setState(() {
+                  _showInsiderFilters = !_showInsiderFilters;
+                });
+              },
+              icon: Icon(
+                _showInsiderFilters ? Icons.expand_less : Icons.expand_more,
+                size: 20,
+                color: theme.colorScheme.primary,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ),
+        if (_showInsiderFilters) ...[
+          const SizedBox(height: 12),
+          // Transaction type filter only
+          DropdownButtonFormField<String>(
+            value: _insiderTransactionFilter,
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _insiderTransactionFilter = value;
+                });
+              }
+            },
+            decoration: InputDecoration(
+              labelText: 'Show Transactions',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+            ),
+            items: ['All', 'Buy', 'Sell'].map((type) {
+              return DropdownMenuItem(
+                value: type,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: type == 'Buy'
+                            ? Colors.green
+                            : type == 'Sell'
+                            ? Colors.red
+                            : Colors.grey,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(type),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          // Results count
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '${_getFilteredInsiderTrades().length} transactions',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildInsiderTradingList(ThemeData theme) {
-    final recentTrades = _insiderTrading.take(10).toList();
+    final filteredTrades = _getFilteredInsiderTrades();
+    final displayTrades = _showMoreInsiderTrades
+        ? filteredTrades.take(100).toList()
+        : filteredTrades.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Recent Transactions',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: theme.colorScheme.primary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Recent Transactions',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            if (filteredTrades.length > 3)
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _showMoreInsiderTrades = !_showMoreInsiderTrades;
+                  });
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  _showMoreInsiderTrades
+                      ? 'Show Less'
+                      : 'Show More (${filteredTrades.length - 3})',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 12),
-        ...recentTrades.map(
+        ...displayTrades.map(
           (trade) => Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
@@ -6091,34 +6416,109 @@ class _DetailScreenState extends State<DetailScreen> {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      '${trade.isBuy
-                          ? "Bought"
-                          : trade.isSell
-                          ? "Sold"
-                          : "Other"} ${trade.securitiesTransacted.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} shares',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: trade.getTransactionColor(),
-                        fontWeight: FontWeight.w500,
+                    Expanded(
+                      child: Text(
+                        '${trade.isBuy
+                            ? "Bought"
+                            : trade.isSell
+                            ? "Sold"
+                            : "Other"} ${trade.securitiesTransacted.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')} shares',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: trade.getTransactionColor(),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    if (trade.price > 0) ...[
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      'Price: ${trade.formatPriceWithType()}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: trade.price > 0
+                            ? FontWeight.normal
+                            : FontWeight.w500,
+                      ),
+                    ),
+                    if (trade.price == 0 &&
+                        trade.transactionType.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Text(
-                        'at ${trade.formatPrice()}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceVariant.withOpacity(
+                            0.3,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          trade.getTransactionTypeDescription(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
                   ],
                 ),
+                if (trade.price > 0) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total: ${_formatCurrency(trade.price * trade.securitiesTransacted)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ] else if (trade.price == 0 &&
+                    (trade.isBuy || trade.isSell)) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total: Not calculable (no price)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
       ],
     );
+  }
+
+  String _formatCurrency(double amount) {
+    if (amount >= 1000000000) {
+      return '\$${(amount / 1000000000).toStringAsFixed(1)}B';
+    } else if (amount >= 1000000) {
+      return '\$${(amount / 1000000).toStringAsFixed(1)}M';
+    } else if (amount >= 1000) {
+      return '\$${(amount / 1000).toStringAsFixed(1)}K';
+    } else {
+      return '\$${amount.toStringAsFixed(0)}';
+    }
+  }
+
+  String _formatNumber(int amount) {
+    if (amount >= 1000000000) {
+      return '${(amount / 1000000000).toStringAsFixed(1)}B';
+    } else if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(1)}K';
+    } else {
+      return amount.toString();
+    }
   }
 
   Color _getScoreColor(String colorName) {
@@ -6262,13 +6662,17 @@ class _DetailScreenState extends State<DetailScreen> {
         _fetchCompanyProfile(),
       ]);
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-      });
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -6469,9 +6873,11 @@ class _DetailScreenState extends State<DetailScreen> {
             .eq('user_id', user.id)
             .eq('symbol', _stockSymbol!);
 
-        setState(() {
-          _isFavorite = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isFavorite = false;
+          });
+        }
 
         _showMessage('Removed from favorites');
       } else {
@@ -6480,18 +6886,22 @@ class _DetailScreenState extends State<DetailScreen> {
           'symbol': _stockSymbol!,
         });
 
-        setState(() {
-          _isFavorite = true;
-        });
+        if (mounted) {
+          setState(() {
+            _isFavorite = true;
+          });
+        }
 
         _showMessage('Added to favorites');
       }
     } catch (e) {
       _showMessage('Failed to update favorites', isError: true);
     } finally {
-      setState(() {
-        _isTogglingFavorite = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isTogglingFavorite = false;
+        });
+      }
     }
   }
 
