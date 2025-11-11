@@ -303,14 +303,28 @@ class _DetailScreenState extends State<DetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            // Day Range Visual Indicator
-            if (stock.dayLow != null && stock.dayHigh != null)
-              _buildRangeIndicator(
-                'Current Price in Today\'s Range',
-                stock.price,
-                stock.dayLow!,
-                stock.dayHigh!,
-                theme,
+            // Replace range indicator with price chart
+            if (_stockSymbol != null)
+              Container(
+                height: 350,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: ChartWidget(
+                    symbol: _stockSymbol!,
+                    height: 350,
+                    lineColor: (stock.changesPercentage ?? 0) >= 0
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.error,
+                  ),
+                ),
               ),
             const SizedBox(height: 16),
             // 52-Week Range Visual Indicator
@@ -322,10 +336,6 @@ class _DetailScreenState extends State<DetailScreen> {
                 stock.yearHigh!,
                 theme,
               ),
-            const SizedBox(height: 16),
-            // Market Cap with categorization
-            if (stock.marketCap != null)
-              _buildMarketCapDisplay(stock.marketCap!, theme),
           ],
         ),
       ),
@@ -485,113 +495,6 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildMarketCapDisplay(double marketCap, ThemeData theme) {
-    // Determine market cap category
-    String category;
-    Color categoryColor;
-
-    if (marketCap >= 200000000000) {
-      // $200B+
-      category = 'Mega Cap';
-      categoryColor = Colors.purple;
-    } else if (marketCap >= 10000000000) {
-      // $10B+
-      category = 'Large Cap';
-      categoryColor = Colors.blue;
-    } else if (marketCap >= 2000000000) {
-      // $2B+
-      category = 'Mid Cap';
-      categoryColor = Colors.green;
-    } else if (marketCap >= 300000000) {
-      // $300M+
-      category = 'Small Cap';
-      categoryColor = Colors.orange;
-    } else if (marketCap >= 50000000) {
-      // $50M+
-      category = 'Micro Cap';
-      categoryColor = Colors.red;
-    } else {
-      category = 'Nano Cap';
-      categoryColor = Colors.grey;
-    }
-
-    // Format market cap value
-    String formattedValue;
-    if (marketCap >= 1000000000000) {
-      // $1T+
-      formattedValue = '\$${(marketCap / 1000000000000).toStringAsFixed(2)}T';
-    } else if (marketCap >= 1000000000) {
-      // $1B+
-      formattedValue = '\$${(marketCap / 1000000000).toStringAsFixed(2)}B';
-    } else if (marketCap >= 1000000) {
-      // $1M+
-      formattedValue = '\$${(marketCap / 1000000).toStringAsFixed(2)}M';
-    } else {
-      formattedValue = '\$${marketCap.toStringAsFixed(0)}';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outline.withOpacity(0.2),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title
-          Text(
-            'Market Capitalization',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          // Market cap value and category
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                formattedValue,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: categoryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: categoryColor.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  category,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: categoryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCompanyProfileSection(ThemeData theme) {
     if (_companyProfile == null) {
       return const SizedBox.shrink();
@@ -622,6 +525,77 @@ class _DetailScreenState extends State<DetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
+
+            // Market Cap with categorization
+            if (_stockDetail?.marketCap != null) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withOpacity(0.2),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      'Market Capitalization',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Market cap value and category
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatMarketCap(_stockDetail!.marketCap!),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getMarketCapCategoryColor(
+                              _stockDetail!.marketCap!,
+                            ).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: _getMarketCapCategoryColor(
+                                _stockDetail!.marketCap!,
+                              ).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _getMarketCapCategory(_stockDetail!.marketCap!),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: _getMarketCapCategoryColor(
+                                _stockDetail!.marketCap!,
+                              ),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // Industry and Sector
             Row(
@@ -932,8 +906,17 @@ class _DetailScreenState extends State<DetailScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const Spacer(),
-              ToggleButtons(
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Move toggle below header
+          Center(
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: ToggleButtons(
                 isSelected: [!_showGeographicRevenue, _showGeographicRevenue],
                 onPressed: (index) async {
                   if (index == 0) {
@@ -967,7 +950,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   ),
                 ],
               ),
-            ],
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -4164,6 +4147,22 @@ class _DetailScreenState extends State<DetailScreen> {
     }
   }
 
+  /// Format market cap value as string
+  String _formatMarketCap(double marketCap) {
+    if (marketCap >= 1000000000000) {
+      // $1T+
+      return '\$${(marketCap / 1000000000000).toStringAsFixed(2)}T';
+    } else if (marketCap >= 1000000000) {
+      // $1B+
+      return '\$${(marketCap / 1000000000).toStringAsFixed(2)}B';
+    } else if (marketCap >= 1000000) {
+      // $1M+
+      return '\$${(marketCap / 1000000).toStringAsFixed(2)}M';
+    } else {
+      return '\$${marketCap.toStringAsFixed(0)}';
+    }
+  }
+
   /// Score profitability ratios (higher is better)
   String _scoreProfitabilityRatio(double? value) {
     if (value == null) return 'N/A';
@@ -4877,133 +4876,239 @@ class _DetailScreenState extends State<DetailScreen> {
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.shadow.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                Icons.score_outlined,
-                color: theme.colorScheme.primary,
-                size: 24,
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.health_and_safety,
+                  color: theme.colorScheme.primary,
+                  size: 24,
+                ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Text(
-                'Financial Health Scores',
+                'Financial Health',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Altman Z-Score
-          _buildScoreCard(
-            'Altman Z-Score',
-            _financialScores!.altmanZScore?.toStringAsFixed(2) ?? 'N/A',
-            _financialScores!.getAltmanZScoreInterpretation(),
-            _getScoreColor(_financialScores!.getAltmanZScoreColor()),
-            theme,
-            'Predicts bankruptcy risk. >3.0 = Safe, 1.8-3.0 = Grey Zone, <1.8 = Distress',
-            _buildAltmanZScoreBreakdown(theme),
-          ),
-          const SizedBox(height: 16),
-
-          // Piotroski F-Score
-          _buildScoreCard(
-            'Piotroski F-Score',
-            _financialScores!.piotroskiScore?.toString() ?? 'N/A',
-            _financialScores!.getPiotroskiScoreInterpretation(),
-            _getScoreColor(_financialScores!.getPiotroskiScoreColor()),
-            theme,
-            'Fundamental analysis score. 9 = Strong, 5-8 = Medium, 0-4 = Weak',
-            _buildPiotroskiScoreBreakdown(theme),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScoreCard(
-    String title,
-    String score,
-    String interpretation,
-    Color scoreColor,
-    ThemeData theme,
-    String description,
-    Widget breakdown,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Altman Z-Score Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.2),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
+                    Icon(
+                      Icons.shield,
+                      color: _getScoreColor(
+                        _financialScores!.getAltmanZScoreColor(),
+                      ),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
                     Text(
-                      title,
+                      'Bankruptcy Risk (Z-Score)',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _financialScores!.altmanZScore?.toStringAsFixed(
+                                  1,
+                                ) ??
+                                'N/A',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: _getScoreColor(
+                                _financialScores!.getAltmanZScoreColor(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _financialScores!.getAltmanZScoreInterpretation(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _getScoreColor(
+                          _financialScores!.getAltmanZScoreColor(),
+                        ).withOpacity(0.1),
+                        border: Border.all(
+                          color: _getScoreColor(
+                            _financialScores!.getAltmanZScoreColor(),
+                          ).withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _financialScores!.altmanZScore != null
+                              ? (_financialScores!.altmanZScore! > 3
+                                    ? 'A'
+                                    : _financialScores!.altmanZScore! > 1.8
+                                    ? 'B'
+                                    : 'C')
+                              : 'N/A',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: _getScoreColor(
+                              _financialScores!.getAltmanZScoreColor(),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: scoreColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: scoreColor.withOpacity(0.3)),
-                ),
-                child: Text(
-                  score,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: scoreColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: scoreColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              interpretation,
-              style: theme.textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: scoreColor,
-              ),
+              ],
             ),
           ),
+
           const SizedBox(height: 16),
-          breakdown,
+
+          // Piotroski F-Score Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outline.withOpacity(0.2),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.analytics,
+                      color: _getScoreColor(
+                        _financialScores!.getPiotroskiScoreColor(),
+                      ),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Fundamental Strength (F-Score)',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _financialScores!.piotroskiScore?.toString() ??
+                                'N/A',
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: _getScoreColor(
+                                _financialScores!.getPiotroskiScoreColor(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _financialScores!.getPiotroskiScoreInterpretation(),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 60,
+                      height: 60,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: CircularProgressIndicator(
+                              value:
+                                  (_financialScores!.piotroskiScore ?? 0) / 9,
+                              backgroundColor: theme.colorScheme.surfaceVariant,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                _getScoreColor(
+                                  _financialScores!.getPiotroskiScoreColor(),
+                                ),
+                              ),
+                              strokeWidth: 6,
+                            ),
+                          ),
+                          Text(
+                            '${_financialScores!.piotroskiScore ?? 0}/9',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: _getScoreColor(
+                                _financialScores!.getPiotroskiScoreColor(),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -6442,6 +6547,38 @@ class _DetailScreenState extends State<DetailScreen> {
       return remainingText.isNotEmpty;
     }
     return false;
+  }
+
+  String _getMarketCapCategory(double marketCap) {
+    if (marketCap >= 200000000000) {
+      return 'Mega Cap';
+    } else if (marketCap >= 10000000000) {
+      return 'Large Cap';
+    } else if (marketCap >= 2000000000) {
+      return 'Mid Cap';
+    } else if (marketCap >= 300000000) {
+      return 'Small Cap';
+    } else if (marketCap >= 50000000) {
+      return 'Micro Cap';
+    } else {
+      return 'Nano Cap';
+    }
+  }
+
+  Color _getMarketCapCategoryColor(double marketCap) {
+    if (marketCap >= 200000000000) {
+      return Colors.purple;
+    } else if (marketCap >= 10000000000) {
+      return Colors.blue;
+    } else if (marketCap >= 2000000000) {
+      return Colors.green;
+    } else if (marketCap >= 300000000) {
+      return Colors.orange;
+    } else if (marketCap >= 50000000) {
+      return Colors.red;
+    } else {
+      return Colors.grey;
+    }
   }
 }
 
