@@ -732,6 +732,72 @@ class ApiService {
     }
   }
 
+  /// Get sector P/E ratio snapshot data
+  ///
+  /// Returns P/E ratios for different sectors and exchanges
+  /// Useful for comparing stock valuation against sector averages
+  Future<List<SectorPeData>> getSectorPeSnapshot({
+    String? sector,
+    String? date,
+  }) async {
+    try {
+      debugPrint(
+        '📊 Fetching sector P/E snapshot${sector != null ? ' for $sector' : ''}${date != null ? ' on $date' : ''}',
+      );
+
+      var queryParams = '';
+      if (date != null && date.isNotEmpty) {
+        queryParams = '?date=$date&apikey=$_apiKey';
+      } else {
+        queryParams = '?apikey=$_apiKey';
+      }
+
+      final url = Uri.parse('$_baseUrl/sector-pe-snapshot$queryParams');
+
+      debugPrint('🌐 API URL: $url');
+
+      final response = await http.get(url);
+
+      debugPrint('📊 Response status: ${response.statusCode}');
+      debugPrint('📊 Response body length: ${response.body.length}');
+      debugPrint(
+        '📊 Response body preview: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          '⚠️ Sector P/E data not available. Status: ${response.statusCode}',
+        );
+        debugPrint('⚠️ Response: ${response.body}');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No sector P/E data available');
+        return [];
+      }
+
+      debugPrint('📊 Parsing ${data.length} sector records...');
+      final sectorPeData = data
+          .map((item) => SectorPeData.fromJson(item))
+          .toList();
+
+      debugPrint(
+        '📊 Successfully parsed ${sectorPeData.length} sector P/E records',
+      );
+      debugPrint(
+        '📊 Sample sector data: ${sectorPeData.take(3).map((s) => '${s.sector}: ${s.pe}').join(', ')}',
+      );
+
+      return sectorPeData;
+    } catch (e) {
+      debugPrint('❌ Error fetching sector P/E data: $e');
+      return [];
+    }
+  }
+
   /// Get insider trading data for a specific stock symbol
   ///
   /// Returns list of recent insider transactions (Form 4 filings)
@@ -862,6 +928,83 @@ class ApiService {
     } catch (e) {
       debugPrint('❌ Error fetching house trading data: $e');
       return [];
+    }
+  }
+
+  /// Get analyst estimates data
+  /// Returns analyst financial estimates for the specified symbol
+  Future<List<AnalystEstimates>> getAnalystEstimates(String symbol) async {
+    try {
+      debugPrint('📈 Fetching analyst estimates for $symbol...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/analyst-estimates'
+        '?symbol=$symbol&period=annual&page=0&limit=10&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Analyst estimates data not available for $symbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No analyst estimates data available for $symbol');
+        return [];
+      }
+
+      final estimates = data
+          .map((item) => AnalystEstimates.fromJson(item))
+          .toList();
+
+      // Sort by date (most recent first)
+      estimates.sort((a, b) => b.date.compareTo(a.date));
+
+      debugPrint('📈 Loaded ${estimates.length} analyst estimates for $symbol');
+      return estimates;
+    } catch (e) {
+      debugPrint('❌ Error fetching analyst estimates: $e');
+      return [];
+    }
+  }
+
+  /// Get grades consensus data
+  /// Returns analyst recommendation consensus for the specified symbol
+  Future<GradesConsensus?> getGradesConsensus(String symbol) async {
+    try {
+      debugPrint('📊 Fetching grades consensus for $symbol...');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/grades-consensus'
+        '?symbol=$symbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Grades consensus data not available for $symbol');
+        return null;
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No grades consensus data available for $symbol');
+        return null;
+      }
+
+      final consensus = GradesConsensus.fromJson(data.first);
+
+      debugPrint(
+        '📊 Loaded grades consensus for $symbol: ${consensus.consensus}',
+      );
+      return consensus;
+    } catch (e) {
+      debugPrint('❌ Error fetching grades consensus: $e');
+      return null;
     }
   }
 
@@ -2838,6 +2981,41 @@ class SectorPerformance {
   }
 }
 
+class SectorPeData {
+  final String date;
+  final String sector;
+  final String exchange;
+  final double pe;
+
+  SectorPeData({
+    required this.date,
+    required this.sector,
+    required this.exchange,
+    required this.pe,
+  });
+
+  factory SectorPeData.fromJson(Map<String, dynamic> json) {
+    return SectorPeData(
+      date: json['date']?.toString() ?? '',
+      sector: json['sector']?.toString() ?? '',
+      exchange: json['exchange']?.toString() ?? '',
+      pe: _parseDouble(json['pe']) ?? 0.0,
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Format P/E ratio
+  String get formattedPe => pe.toStringAsFixed(2);
+}
+
 /// Insider Trading model for SEC Form 4 filings and executive transactions
 /// Provides transparency into company insider buying/selling activity
 class InsiderTrading {
@@ -3322,5 +3500,223 @@ class RevenueSegmentation {
   @override
   String toString() {
     return 'RevenueSegmentation(symbol: $symbol, fiscalYear: $fiscalYear, totalRevenue: $totalRevenue, products: ${data.length})';
+  }
+}
+
+/// Analyst estimates data model
+/// Represents analyst financial estimates for a company
+class AnalystEstimates {
+  final String symbol;
+  final String date;
+  final double revenueLow;
+  final double revenueHigh;
+  final double revenueAvg;
+  final double ebitdaLow;
+  final double ebitdaHigh;
+  final double ebitdaAvg;
+  final double ebitLow;
+  final double ebitHigh;
+  final double ebitAvg;
+  final double netIncomeLow;
+  final double netIncomeHigh;
+  final double netIncomeAvg;
+  final double sgaExpenseLow;
+  final double sgaExpenseHigh;
+  final double sgaExpenseAvg;
+  final double epsAvg;
+  final double epsHigh;
+  final double epsLow;
+  final int numAnalystsRevenue;
+  final int numAnalystsEps;
+
+  AnalystEstimates({
+    required this.symbol,
+    required this.date,
+    required this.revenueLow,
+    required this.revenueHigh,
+    required this.revenueAvg,
+    required this.ebitdaLow,
+    required this.ebitdaHigh,
+    required this.ebitdaAvg,
+    required this.ebitLow,
+    required this.ebitHigh,
+    required this.ebitAvg,
+    required this.netIncomeLow,
+    required this.netIncomeHigh,
+    required this.netIncomeAvg,
+    required this.sgaExpenseLow,
+    required this.sgaExpenseHigh,
+    required this.sgaExpenseAvg,
+    required this.epsAvg,
+    required this.epsHigh,
+    required this.epsLow,
+    required this.numAnalystsRevenue,
+    required this.numAnalystsEps,
+  });
+
+  factory AnalystEstimates.fromJson(Map<String, dynamic> json) {
+    return AnalystEstimates(
+      symbol: json['symbol']?.toString() ?? '',
+      date: json['date']?.toString() ?? '',
+      revenueLow: (json['revenueLow'] as num?)?.toDouble() ?? 0.0,
+      revenueHigh: (json['revenueHigh'] as num?)?.toDouble() ?? 0.0,
+      revenueAvg: (json['revenueAvg'] as num?)?.toDouble() ?? 0.0,
+      ebitdaLow: (json['ebitdaLow'] as num?)?.toDouble() ?? 0.0,
+      ebitdaHigh: (json['ebitdaHigh'] as num?)?.toDouble() ?? 0.0,
+      ebitdaAvg: (json['ebitdaAvg'] as num?)?.toDouble() ?? 0.0,
+      ebitLow: (json['ebitLow'] as num?)?.toDouble() ?? 0.0,
+      ebitHigh: (json['ebitHigh'] as num?)?.toDouble() ?? 0.0,
+      ebitAvg: (json['ebitAvg'] as num?)?.toDouble() ?? 0.0,
+      netIncomeLow: (json['netIncomeLow'] as num?)?.toDouble() ?? 0.0,
+      netIncomeHigh: (json['netIncomeHigh'] as num?)?.toDouble() ?? 0.0,
+      netIncomeAvg: (json['netIncomeAvg'] as num?)?.toDouble() ?? 0.0,
+      sgaExpenseLow: (json['sgaExpenseLow'] as num?)?.toDouble() ?? 0.0,
+      sgaExpenseHigh: (json['sgaExpenseHigh'] as num?)?.toDouble() ?? 0.0,
+      sgaExpenseAvg: (json['sgaExpenseAvg'] as num?)?.toDouble() ?? 0.0,
+      epsAvg: (json['epsAvg'] as num?)?.toDouble() ?? 0.0,
+      epsHigh: (json['epsHigh'] as num?)?.toDouble() ?? 0.0,
+      epsLow: (json['epsLow'] as num?)?.toDouble() ?? 0.0,
+      numAnalystsRevenue: json['numAnalystsRevenue'] as int? ?? 0,
+      numAnalystsEps: json['numAnalystsEps'] as int? ?? 0,
+    );
+  }
+
+  /// Get formatted date
+  String get formattedDate {
+    try {
+      final dateTime = DateTime.parse(date);
+      return '${dateTime.year}';
+    } catch (e) {
+      return date;
+    }
+  }
+
+  /// Format currency value
+  static String formatCurrency(double value) {
+    if (value >= 1000000000) {
+      return '\$${(value / 1000000000).toStringAsFixed(1)}B';
+    } else if (value >= 1000000) {
+      return '\$${(value / 1000000).toStringAsFixed(1)}M';
+    } else if (value >= 1000) {
+      return '\$${(value / 1000).toStringAsFixed(1)}K';
+    }
+    return '\$${value.toStringAsFixed(0)}';
+  }
+
+  /// Get revenue range as formatted string
+  String get revenueRange =>
+      '${formatCurrency(revenueLow)} - ${formatCurrency(revenueHigh)}';
+
+  /// Get EBITDA range as formatted string
+  String get ebitdaRange =>
+      '${formatCurrency(ebitdaLow)} - ${formatCurrency(ebitdaHigh)}';
+
+  /// Get EBIT range as formatted string
+  String get ebitRange =>
+      '${formatCurrency(ebitLow)} - ${formatCurrency(ebitHigh)}';
+
+  /// Get net income range as formatted string
+  String get netIncomeRange =>
+      '${formatCurrency(netIncomeLow)} - ${formatCurrency(netIncomeHigh)}';
+
+  /// Get EPS range as formatted string
+  String get epsRange =>
+      '\$${epsLow.toStringAsFixed(2)} - \$${epsHigh.toStringAsFixed(2)}';
+
+  /// Get revenue consensus percentage (how close low/high are to average)
+  double get revenueConsensus {
+    if (revenueHigh == revenueLow) return 100.0;
+    final range = revenueHigh - revenueLow;
+    final deviation =
+        (revenueHigh - revenueAvg).abs() + (revenueAvg - revenueLow).abs();
+    return ((range - deviation) / range * 100).clamp(0.0, 100.0);
+  }
+
+  /// Get EPS consensus percentage
+  double get epsConsensus {
+    if (epsHigh == epsLow) return 100.0;
+    final range = epsHigh - epsLow;
+    final deviation = (epsHigh - epsAvg).abs() + (epsAvg - epsLow).abs();
+    return ((range - deviation) / range * 100).clamp(0.0, 100.0);
+  }
+
+  @override
+  String toString() {
+    return 'AnalystEstimates(symbol: $symbol, date: $date, revenueAvg: $revenueAvg, epsAvg: $epsAvg)';
+  }
+}
+
+/// Grades consensus data model
+/// Represents analyst recommendation consensus for a company
+class GradesConsensus {
+  final String symbol;
+  final int strongBuy;
+  final int buy;
+  final int hold;
+  final int sell;
+  final int strongSell;
+  final String consensus;
+
+  GradesConsensus({
+    required this.symbol,
+    required this.strongBuy,
+    required this.buy,
+    required this.hold,
+    required this.sell,
+    required this.strongSell,
+    required this.consensus,
+  });
+
+  factory GradesConsensus.fromJson(Map<String, dynamic> json) {
+    return GradesConsensus(
+      symbol: json['symbol']?.toString() ?? '',
+      strongBuy: json['strongBuy'] as int? ?? 0,
+      buy: json['buy'] as int? ?? 0,
+      hold: json['hold'] as int? ?? 0,
+      sell: json['sell'] as int? ?? 0,
+      strongSell: json['strongSell'] as int? ?? 0,
+      consensus: json['consensus']?.toString() ?? '',
+    );
+  }
+
+  /// Get total number of analyst recommendations
+  int get total => strongBuy + buy + hold + sell + strongSell;
+
+  /// Get percentage for each grade
+  double get strongBuyPercentage => total > 0 ? (strongBuy / total) * 100 : 0.0;
+  double get buyPercentage => total > 0 ? (buy / total) * 100 : 0.0;
+  double get holdPercentage => total > 0 ? (hold / total) * 100 : 0.0;
+  double get sellPercentage => total > 0 ? (sell / total) * 100 : 0.0;
+  double get strongSellPercentage =>
+      total > 0 ? (strongSell / total) * 100 : 0.0;
+
+  /// Get color for each grade
+  static Color getStrongBuyColor() => const Color(0xFF1B5E20); // Dark green
+  static Color getBuyColor() => Colors.green;
+  static Color getHoldColor() => Colors.yellow;
+  static Color getSellColor() => Colors.red;
+  static Color getStrongSellColor() => const Color(0xFF880E4F); // Dark red
+
+  /// Get consensus color
+  Color get consensusColor {
+    switch (consensus.toLowerCase()) {
+      case 'strong buy':
+        return getStrongBuyColor();
+      case 'buy':
+        return getBuyColor();
+      case 'hold':
+        return getHoldColor();
+      case 'sell':
+        return getSellColor();
+      case 'strong sell':
+        return getStrongSellColor();
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  String toString() {
+    return 'GradesConsensus(symbol: $symbol, consensus: $consensus, total: $total)';
   }
 }

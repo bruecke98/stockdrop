@@ -150,67 +150,86 @@ class EnhancedStockCard extends StatelessWidget {
 
                             const SizedBox(height: 8),
 
-                            // Beta, sector, and market cap row (exchange moved to top right)
-                            Row(
+                            // Beta, sector, and market cap (market cap below beta/sector)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Beta display
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: Colors.red,
-                                      width: 1,
+                                // Beta and sector row
+                                Row(
+                                  children: [
+                                    // Beta display
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: Colors.red,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'β1.23',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 10,
+                                            ),
+                                      ),
                                     ),
-                                  ),
-                                  child: Text(
-                                    'β1.23',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
+                                    const SizedBox(width: 6),
+                                    // Sector display
+                                    Expanded(
+                                      child: Text(
+                                        'Technology',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                                const SizedBox(width: 6),
-                                // Sector display
-                                Expanded(
-                                  child: Text(
-                                    'Technology',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
+                                // Market cap below
+                                if (stock.marketCap != null) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                // Market cap category
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: Colors.blue,
-                                      width: 1,
+                                    decoration: BoxDecoration(
+                                      color: _getMarketCapColor(
+                                        stock.marketCap!,
+                                      ).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: _getMarketCapColor(
+                                          stock.marketCap!,
+                                        ),
+                                        width: 1,
+                                      ),
                                     ),
-                                  ),
-                                  child: Text(
-                                    'Large Cap',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: Colors.blue,
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 10,
+                                    child: Text(
+                                      '${_getMarketCapCategory(stock.marketCap!)} (${_getFormattedMarketCap(stock.marketCap)})',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: _getMarketCapColor(
+                                              stock.marketCap!,
+                                            ),
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 10,
+                                          ),
                                     ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ],
@@ -226,6 +245,32 @@ class EnhancedStockCard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
+                            // Exchange badge above price
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: colorScheme.primary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: colorScheme.primary,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                _getExchangeAbbreviation(
+                                  stock.exchangeShortName ?? 'NYSE',
+                                ),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
                             Text(
                               priceText,
                               style: theme.textTheme.titleMedium?.copyWith(
@@ -255,34 +300,6 @@ class EnhancedStockCard extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ), // Exchange badge positioned at top right
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: colorScheme.primary,
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        _getExchangeAbbreviation(
-                          stock.exchangeShortName ?? 'NYSE',
-                        ),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.primary,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -326,6 +343,21 @@ class EnhancedStockCard extends StatelessWidget {
     } else {
       // <$50M
       return 'Nano Cap';
+    }
+  }
+
+  /// Get formatted market cap string
+  String _getFormattedMarketCap(double? marketCap) {
+    if (marketCap == null) return 'N/A';
+
+    if (marketCap >= 1e12) {
+      return '\$${(marketCap / 1e12).toStringAsFixed(2)}T';
+    } else if (marketCap >= 1e9) {
+      return '\$${(marketCap / 1e9).toStringAsFixed(2)}B';
+    } else if (marketCap >= 1e6) {
+      return '\$${(marketCap / 1e6).toStringAsFixed(2)}M';
+    } else {
+      return '\$${marketCap.toStringAsFixed(0)}';
     }
   }
 
