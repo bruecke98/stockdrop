@@ -84,6 +84,7 @@ class _ChartWidgetState extends State<ChartWidget> {
     '3M',
     '6M',
     '1Y',
+    '5Y',
   ];
 
   /// Get API key from environment variables
@@ -238,6 +239,10 @@ class _ChartWidgetState extends State<ChartWidget> {
         return Uri.parse(
           '$_baseUrl/historical-price-full/$symbol?apikey=$_apiKey',
         );
+      case '5Y':
+        return Uri.parse(
+          '$_baseUrl/historical-price-full/$symbol?apikey=$_apiKey',
+        );
       default:
         return Uri.parse(
           '$_baseUrl/historical-chart/5min/$symbol?apikey=$_apiKey',
@@ -270,9 +275,29 @@ class _ChartWidgetState extends State<ChartWidget> {
         return 180; // Daily for 6 months
       case '1Y':
         return 365; // Daily for 1 year
+      case '5Y':
+        return 1825; // Daily for 5 years (365 * 5)
       default:
         return 100;
     }
+  }
+
+  /// Calculate 50-day moving average from chart data
+  List<FlSpot> _calculateMovingAverage50() {
+    if (_chartData.length < 50) return [];
+
+    final movingAverageSpots = <FlSpot>[];
+
+    for (int i = 49; i < _chartData.length; i++) {
+      double sum = 0;
+      for (int j = i - 49; j <= i; j++) {
+        sum += _chartData[j].price;
+      }
+      final average = sum / 50;
+      movingAverageSpots.add(FlSpot((i - 49).toDouble(), average));
+    }
+
+    return movingAverageSpots;
   }
 
   /// Build the actual line chart
@@ -286,6 +311,9 @@ class _ChartWidgetState extends State<ChartWidget> {
     final spots = _chartData.asMap().entries.map((entry) {
       return FlSpot(entry.key.toDouble(), entry.value.price);
     }).toList();
+
+    // Calculate 50-day moving average
+    final movingAverageSpots = _calculateMovingAverage50();
 
     return LineChart(
       LineChartData(
@@ -317,10 +345,21 @@ class _ChartWidgetState extends State<ChartWidget> {
                 final index = value.toInt();
                 if (index >= 0 && index < _chartData.length) {
                   final time = _chartData[index].date;
+
+                  // Show time format for 1D, date format for longer periods
+                  String formattedTime;
+                  if (_selectedPeriod == '1D') {
+                    formattedTime =
+                        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+                  } else {
+                    formattedTime =
+                        '${time.month.toString().padLeft(2, '0')}/${time.day.toString().padLeft(2, '0')}';
+                  }
+
                   return Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}',
+                      formattedTime,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         fontSize: 10,
@@ -386,6 +425,17 @@ class _ChartWidgetState extends State<ChartWidget> {
               ),
             ),
           ),
+          // 50-day moving average line
+          if (movingAverageSpots.isNotEmpty)
+            LineChartBarData(
+              spots: movingAverageSpots,
+              isCurved: true,
+              color: Colors.orange,
+              barWidth: 1.5,
+              isStrokeCapRound: true,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(show: false),
+            ),
         ],
         lineTouchData: LineTouchData(
           enabled: true,
@@ -396,14 +446,38 @@ class _ChartWidgetState extends State<ChartWidget> {
                 final index = spot.x.toInt();
                 if (index >= 0 && index < _chartData.length) {
                   final data = _chartData[index];
-                  return LineTooltipItem(
-                    '\$${spot.y.toStringAsFixed(2)}\n${data.date.hour.toString().padLeft(2, '0')}:${data.date.minute.toString().padLeft(2, '0')}',
-                    TextStyle(
-                      color: colorScheme.onInverseSurface,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  );
+                  final isMovingAverage =
+                      spot.barIndex == 1; // Index 1 is the moving average line
+
+                  if (isMovingAverage) {
+                    return LineTooltipItem(
+                      '50MA: \$${spot.y.toStringAsFixed(2)}',
+                      TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    );
+                  } else {
+                    // Format date/time based on selected period
+                    String dateTimeString;
+                    if (_selectedPeriod == '1D') {
+                      dateTimeString =
+                          '${data.date.hour.toString().padLeft(2, '0')}:${data.date.minute.toString().padLeft(2, '0')}';
+                    } else {
+                      dateTimeString =
+                          '${data.date.month.toString().padLeft(2, '0')}/${data.date.day.toString().padLeft(2, '0')}/${data.date.year.toString().substring(2)}';
+                    }
+
+                    return LineTooltipItem(
+                      '\$${spot.y.toStringAsFixed(2)}\n$dateTimeString',
+                      TextStyle(
+                        color: colorScheme.onInverseSurface,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    );
+                  }
                 }
                 return null;
               }).toList();
@@ -468,6 +542,39 @@ class _ChartWidgetState extends State<ChartWidget> {
                           minHeight: 32,
                         ),
                       ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Legend for chart lines
+                Row(
+                  children: [
+                    // Price line indicator
+                    Container(
+                      width: 12,
+                      height: 2,
+                      color: widget.lineColor ?? theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Price',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // 50-day MA indicator (only show if data is available)
+                    if (_calculateMovingAverage50().isNotEmpty) ...[
+                      Container(width: 12, height: 2, color: Colors.orange),
+                      const SizedBox(width: 4),
+                      Text(
+                        '50-Day MA',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 8),

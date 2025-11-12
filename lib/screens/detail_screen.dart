@@ -42,11 +42,9 @@ class _DetailScreenState extends State<DetailScreen> {
   PriceTargetConsensus? _priceTarget;
   DcfAnalysis? _dcfAnalysis;
   List<KeyMetrics> _keyMetrics = [];
-  int _selectedMetricsIndex = 0; // Index of selected year for key metrics
   bool _isKeyMetricsChartView =
       false; // Toggle between table and chart view for key metrics
   List<FinancialRatios> _financialRatios = [];
-  int _selectedRatiosIndex = 0; // Index of selected year for ratios
   bool _isRatiosChartView =
       false; // Toggle between table and chart view for ratios
   FinancialScores? _financialScores;
@@ -3231,55 +3229,6 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Year slider
-          if (_keyMetrics.length > 1)
-            Column(
-              children: [
-                Slider(
-                  value: _selectedMetricsIndex.toDouble(),
-                  min: 0,
-                  max: (_keyMetrics.length - 1).toDouble(),
-                  divisions: _keyMetrics.length - 1,
-                  onChanged: (double value) {
-                    setState(() {
-                      _selectedMetricsIndex = value.toInt();
-                    });
-                  },
-                  activeColor: theme.colorScheme.primary,
-                  inactiveColor: theme.colorScheme.primaryContainer.withOpacity(
-                    0.3,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'FY ${_keyMetrics.first.fiscalYear ?? 'N/A'}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                      Text(
-                        'FY ${_keyMetrics[_selectedMetricsIndex].fiscalYear ?? 'N/A'}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      Text(
-                        'FY ${_keyMetrics.last.fiscalYear ?? 'N/A'}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          const SizedBox(height: 16),
 
           // Show either table or chart view
           _isKeyMetricsChartView
@@ -3379,7 +3328,7 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _buildKeyMetricsTableView(ThemeData theme) {
-    final selectedMetrics = _keyMetrics[_selectedMetricsIndex];
+    final selectedMetrics = _keyMetrics.first;
     final categoryScores = _calculateCategoryScores(selectedMetrics);
 
     return Column(
@@ -3656,8 +3605,7 @@ class _DetailScreenState extends State<DetailScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _keyMetrics[_selectedMetricsIndex]
-                            .financialHealthDescription,
+                        _keyMetrics.first.financialHealthDescription,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -3670,13 +3618,13 @@ class _DetailScreenState extends State<DetailScreen> {
                   height: 60,
                   decoration: BoxDecoration(
                     color: _getHealthScoreColor(
-                      _keyMetrics[_selectedMetricsIndex].financialHealthScore,
+                      _keyMetrics.first.financialHealthScore,
                     ),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
-                      '${_keyMetrics[_selectedMetricsIndex].financialHealthScore}',
+                      '${_keyMetrics.first.financialHealthScore}',
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -3695,13 +3643,9 @@ class _DetailScreenState extends State<DetailScreen> {
             'Valuation Metrics',
             _getValuationChartData(),
             theme,
-            score: _calculateCategoryScores(
-              _keyMetrics[_selectedMetricsIndex],
-            )['valuation'],
+            score: _calculateCategoryScores(_keyMetrics.first)['valuation'],
             scoreColor: _getCategoryScoreColor(
-              _calculateCategoryScores(
-                _keyMetrics[_selectedMetricsIndex],
-              )['valuation']!,
+              _calculateCategoryScores(_keyMetrics.first)['valuation']!,
             ),
           ),
 
@@ -3712,13 +3656,9 @@ class _DetailScreenState extends State<DetailScreen> {
             'Profitability Metrics',
             _getProfitabilityChartData(),
             theme,
-            score: _calculateCategoryScores(
-              _keyMetrics[_selectedMetricsIndex],
-            )['profitability'],
+            score: _calculateCategoryScores(_keyMetrics.first)['profitability'],
             scoreColor: _getCategoryScoreColor(
-              _calculateCategoryScores(
-                _keyMetrics[_selectedMetricsIndex],
-              )['profitability']!,
+              _calculateCategoryScores(_keyMetrics.first)['profitability']!,
             ),
           ),
 
@@ -3729,13 +3669,9 @@ class _DetailScreenState extends State<DetailScreen> {
             'Liquidity & Efficiency',
             _getLiquidityChartData(),
             theme,
-            score: _calculateCategoryScores(
-              _keyMetrics[_selectedMetricsIndex],
-            )['liquidity'],
+            score: _calculateCategoryScores(_keyMetrics.first)['liquidity'],
             scoreColor: _getCategoryScoreColor(
-              _calculateCategoryScores(
-                _keyMetrics[_selectedMetricsIndex],
-              )['liquidity']!,
+              _calculateCategoryScores(_keyMetrics.first)['liquidity']!,
             ),
           ),
 
@@ -3746,13 +3682,9 @@ class _DetailScreenState extends State<DetailScreen> {
             'Cash Flow Metrics',
             _getCashFlowChartData(),
             theme,
-            score: _calculateCategoryScores(
-              _keyMetrics[_selectedMetricsIndex],
-            )['cashFlow'],
+            score: _calculateCategoryScores(_keyMetrics.first)['cashFlow'],
             scoreColor: _getCategoryScoreColor(
-              _calculateCategoryScores(
-                _keyMetrics[_selectedMetricsIndex],
-              )['cashFlow']!,
+              _calculateCategoryScores(_keyMetrics.first)['cashFlow']!,
             ),
           ),
 
@@ -4482,60 +4414,10 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Widget _buildRatiosTableView(ThemeData theme) {
-    final selectedRatios = _financialRatios[_selectedRatiosIndex];
+    final selectedRatios = _financialRatios.first;
 
     return Column(
       children: [
-        // Year slider
-        if (_financialRatios.length > 1)
-          Column(
-            children: [
-              Slider(
-                value: _selectedRatiosIndex.toDouble(),
-                min: 0,
-                max: (_financialRatios.length - 1).toDouble(),
-                divisions: _financialRatios.length - 1,
-                onChanged: (double value) {
-                  setState(() {
-                    _selectedRatiosIndex = value.toInt();
-                  });
-                },
-                activeColor: theme.colorScheme.primary,
-                inactiveColor: theme.colorScheme.primaryContainer.withOpacity(
-                  0.3,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _financialRatios.first.formattedPeriod,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                    Text(
-                      _financialRatios[_selectedRatiosIndex].formattedPeriod,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    Text(
-                      _financialRatios.last.formattedPeriod,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        if (_financialRatios.length > 1) const SizedBox(height: 16),
-
         // Profitability Ratios - Showing progression from Revenue to Net Profit
         _buildRatiosCategory(
           'Profitability Ratios (Revenue → Operating Profit → EBITDA → Net Profit)',
@@ -5282,33 +5164,6 @@ class _DetailScreenState extends State<DetailScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Current position indicator
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getScoreColor(
-                                _financialScores!.getAltmanZScoreColor(),
-                              ).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: _getScoreColor(
-                                  _financialScores!.getAltmanZScoreColor(),
-                                ).withOpacity(0.3),
-                              ),
-                            ),
-                            child: Text(
-                              'You are here →',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: _getScoreColor(
-                                  _financialScores!.getAltmanZScoreColor(),
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -9043,8 +8898,6 @@ class _DetailScreenState extends State<DetailScreen> {
     try {
       final apiService = ApiService();
       _keyMetrics = await apiService.getKeyMetrics(_stockSymbol!, limit: 5);
-      // Reset to latest year (index 0) when new data is loaded
-      _selectedMetricsIndex = 0;
     } catch (e) {
       debugPrint('Error fetching key metrics: $e');
     }
@@ -9059,8 +8912,6 @@ class _DetailScreenState extends State<DetailScreen> {
         _stockSymbol!,
         limit: 5,
       );
-      // Reset to latest year (index 0) when new data is loaded
-      _selectedRatiosIndex = 0;
     } catch (e) {
       debugPrint('Error fetching financial ratios: $e');
     }
