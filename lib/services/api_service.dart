@@ -798,6 +798,74 @@ class ApiService {
     }
   }
 
+  /// Get industry P/E ratio snapshot data
+  ///
+  /// Returns P/E ratios for different industries and exchanges
+  /// Useful for comparing stock valuation against industry averages
+  Future<List<IndustryPeData>> getIndustryPeSnapshot({
+    String? industry,
+    String? date,
+  }) async {
+    try {
+      debugPrint(
+        '📊 Fetching industry P/E snapshot${industry != null ? ' for $industry' : ''}${date != null ? ' on $date' : ''}',
+      );
+
+      var queryParams = '';
+      if (date != null && date.isNotEmpty) {
+        queryParams = '?date=$date&apikey=$_apiKey';
+      } else {
+        queryParams = '?apikey=$_apiKey';
+      }
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/industry-pe-snapshot$queryParams',
+      );
+
+      debugPrint('🌐 API URL: $url');
+
+      final response = await http.get(url);
+
+      debugPrint('📊 Response status: ${response.statusCode}');
+      debugPrint('📊 Response body length: ${response.body.length}');
+      debugPrint(
+        '📊 Response body preview: ${response.body.length > 200 ? response.body.substring(0, 200) : response.body}',
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          '⚠️ Industry P/E data not available. Status: ${response.statusCode}',
+        );
+        debugPrint('⚠️ Response: ${response.body}');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No industry P/E data available');
+        return [];
+      }
+
+      debugPrint('📊 Parsing ${data.length} industry records...');
+      final industryPeData = data
+          .map((item) => IndustryPeData.fromJson(item))
+          .toList();
+
+      debugPrint(
+        '📊 Successfully parsed ${industryPeData.length} industry P/E records',
+      );
+      debugPrint(
+        '📊 Sample industry data: ${industryPeData.take(3).map((s) => '${s.industry}: ${s.pe}').join(', ')}',
+      );
+
+      return industryPeData;
+    } catch (e) {
+      debugPrint('❌ Error fetching industry P/E data: $e');
+      return [];
+    }
+  }
+
   /// Get insider trading data for a specific stock symbol
   ///
   /// Returns list of recent insider transactions (Form 4 filings)
@@ -2438,12 +2506,13 @@ class KeyMetrics {
 
     // Free Cash Flow Yield (good: >5%, ok: >2%, poor: <0%)
     if (freeCashFlowYield != null) {
-      if (freeCashFlowYield! > 0.05)
+      if (freeCashFlowYield! > 0.05) {
         score += 10;
-      else if (freeCashFlowYield! > 0.02)
+      } else if (freeCashFlowYield! > 0.02) {
         score += 5;
-      else if (freeCashFlowYield! < 0)
+      } else if (freeCashFlowYield! < 0) {
         score -= 15;
+      }
     }
 
     return score.clamp(0, 100);
@@ -2999,6 +3068,38 @@ class SectorPeData {
       date: json['date']?.toString() ?? '',
       sector: json['sector']?.toString() ?? '',
       exchange: json['exchange']?.toString() ?? '',
+      pe: _parseDouble(json['pe']) ?? 0.0,
+    );
+  }
+
+  /// Helper method to safely parse double from dynamic value
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Format P/E ratio
+  String get formattedPe => pe.toStringAsFixed(2);
+}
+
+class IndustryPeData {
+  final String date;
+  final String industry;
+  final double pe;
+
+  IndustryPeData({
+    required this.date,
+    required this.industry,
+    required this.pe,
+  });
+
+  factory IndustryPeData.fromJson(Map<String, dynamic> json) {
+    return IndustryPeData(
+      date: json['date']?.toString() ?? '',
+      industry: json['industry']?.toString() ?? '',
       pe: _parseDouble(json['pe']) ?? 0.0,
     );
   }

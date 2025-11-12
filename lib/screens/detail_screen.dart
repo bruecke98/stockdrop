@@ -52,6 +52,7 @@ class _DetailScreenState extends State<DetailScreen> {
   FinancialScores? _financialScores;
   List<SectorPerformance> _sectorPerformance = [];
   List<SectorPeData> _sectorPeData = [];
+  List<IndustryPeData> _industryPeData = [];
   List<InsiderTrading> _insiderTrading = [];
   List<SenateTrading> _senateTrading = [];
   List<HouseTrading> _houseTrading = [];
@@ -208,7 +209,7 @@ class _DetailScreenState extends State<DetailScreen> {
             const SizedBox(height: 24),
             _buildGradesConsensusSection(theme),
             const SizedBox(height: 24),
-            _buildSectorPeComparisonSection(theme),
+            _buildComparisonSection(theme),
             const SizedBox(height: 24),
             _buildRevenueSegmentationSection(theme),
             const SizedBox(height: 24),
@@ -5467,9 +5468,9 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildSectorPeComparisonSection(ThemeData theme) {
+  Widget _buildComparisonSection(ThemeData theme) {
     debugPrint(
-      '🔍 Building sector P/E section. Data length: ${_sectorPeData.length}',
+      '🔍 Building comparison section. Sector data length: ${_sectorPeData.length}, Industry data length: ${_industryPeData.length}',
     );
     debugPrint('🔍 Financial ratios available: ${_financialRatios.length}');
     if (_financialRatios.isNotEmpty) {
@@ -5478,22 +5479,20 @@ class _DetailScreenState extends State<DetailScreen> {
       );
     }
 
-    if (_sectorPeData.isEmpty) {
-      debugPrint('⚠️ No sector P/E data available, hiding section');
+    // Show section if we have either sector or industry data
+    if (_sectorPeData.isEmpty && _industryPeData.isEmpty) {
+      debugPrint('⚠️ No sector or industry P/E data available, hiding section');
       return const SizedBox.shrink();
     }
 
     debugPrint(
-      '✅ Showing sector P/E section with ${_sectorPeData.length} data points',
+      '✅ Showing comparison section with ${_sectorPeData.length} sector and ${_industryPeData.length} industry data points',
     );
 
     // Get the stock's current P/E ratio from financial ratios
     final stockPeRatio = _financialRatios.isNotEmpty
         ? _financialRatios.first.priceToEarningsRatio
         : null;
-
-    // Get the sector P/E data (should be only one sector now)
-    final sectorData = _sectorPeData.first;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -5515,7 +5514,7 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Sector P/E Comparison',
+                'Comparison',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -5523,71 +5522,47 @@ class _DetailScreenState extends State<DetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          // P/E Subheading
           Text(
-            stockPeRatio != null
-                ? 'Compare this stock\'s valuation with its sector average'
-                : 'Sector average P/E ratio',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
+            'P/E',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.primary,
             ),
           ),
-          const SizedBox(height: 20),
-          // Show sector P/E even if stock P/E is not available
-          Row(
-            children: [
-              if (stockPeRatio != null) ...[
-                Expanded(
-                  child: _buildPeComparisonCard(
-                    'Stock P/E',
-                    stockPeRatio,
-                    theme,
-                    isStock: true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: _buildPeComparisonCard(
-                  'Sector P/E',
-                  sectorData.pe,
-                  theme,
-                  isStock: false,
-                ),
-              ),
-            ],
-          ),
+          const SizedBox(height: 8),
+          // Stock P/E Sub-subheading
           if (stockPeRatio != null) ...[
-            const SizedBox(height: 16),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: stockPeRatio < sectorData.pe
-                      ? Colors.green.withOpacity(0.1)
-                      : stockPeRatio > sectorData.pe
-                      ? Colors.red.withOpacity(0.1)
-                      : Colors.grey.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  stockPeRatio < sectorData.pe
-                      ? 'Potentially Undervalued'
-                      : stockPeRatio > sectorData.pe
-                      ? 'Potentially Overvalued'
-                      : 'Fairly Valued',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: stockPeRatio < sectorData.pe
-                        ? Colors.green
-                        : stockPeRatio > sectorData.pe
-                        ? Colors.red
-                        : Colors.grey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+            Text(
+              'Stock P/E: ${stockPeRatio.toStringAsFixed(1)}',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurface,
               ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          // Sector Comparison Card (Full Width)
+          if (_sectorPeData.isNotEmpty && stockPeRatio != null) ...[
+            _buildFullWidthComparisonCard(
+              title: _sectorPeData.first.sector,
+              value: _sectorPeData.first.pe.toStringAsFixed(1),
+              valueType: 'P/E Ratio',
+              stockValue: stockPeRatio,
+              theme: theme,
+              isSector: true,
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Industry Comparison Card (Full Width)
+          if (_industryPeData.isNotEmpty) ...[
+            _buildFullWidthComparisonCard(
+              title: _industryPeData.first.industry,
+              value: _industryPeData.first.pe.toStringAsFixed(1),
+              valueType: 'P/E Ratio',
+              stockValue: stockPeRatio,
+              theme: theme,
+              isSector: false,
             ),
           ],
         ],
@@ -5595,55 +5570,88 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildPeComparisonCard(
-    String title,
-    double peRatio,
-    ThemeData theme, {
-    required bool isStock,
+  Widget _buildFullWidthComparisonCard({
+    required String title,
+    required String value,
+    required String valueType,
+    required double? stockValue,
+    required ThemeData theme,
+    required bool isSector,
   }) {
+    // Calculate percentage difference for P/E comparison
+    String? percentageDiff;
+    Color? diffColor;
+
+    if (stockValue != null) {
+      final comparisonValue = double.tryParse(value);
+      if (comparisonValue != null) {
+        final diff = ((stockValue - comparisonValue) / comparisonValue) * 100;
+        percentageDiff = '${diff >= 0 ? '+' : ''}${diff.toStringAsFixed(1)}%';
+        diffColor = diff < 0
+            ? Colors.green
+            : diff > 0
+            ? Colors.red
+            : Colors.grey;
+      }
+    }
+
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isStock
-            ? theme.colorScheme.primary.withOpacity(0.1)
-            : theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isStock
-              ? theme.colorScheme.primary.withOpacity(0.3)
-              : theme.colorScheme.outline.withOpacity(0.2),
-        ),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: isStock
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
+          // Title and Value
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$value ${valueType == 'Performance' ? '%' : ''}',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  valueType,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
-          Text(
-            peRatio.toStringAsFixed(1),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: isStock
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurface,
+          // Percentage Difference
+          if (percentageDiff != null && diffColor != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: diffColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                percentageDiff,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: diffColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'P/E Ratio',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -9052,6 +9060,95 @@ class _DetailScreenState extends State<DetailScreen> {
         debugPrint(
           '⚠️ No matching sector data found. Available sectors: ${allSectorData.map((d) => d.sector).toList()}',
         );
+      }
+
+      // Fetch industry P/E data if industry is available
+      if (_companyProfile!.industry != null) {
+        debugPrint(
+          '📊 Fetching P/E data for industry: ${_companyProfile!.industry!}',
+        );
+
+        var allIndustryData = await apiService.getIndustryPeSnapshot(
+          date: dateString,
+        );
+
+        // If no data with the calculated date, try without date (latest available)
+        if (allIndustryData.isEmpty) {
+          debugPrint(
+            '📊 No industry data for $dateString, trying without date parameter',
+          );
+          allIndustryData = await apiService.getIndustryPeSnapshot();
+        }
+
+        if (allIndustryData.isNotEmpty) {
+          debugPrint(
+            '📊 Available industries from API: ${allIndustryData.map((d) => d.industry).toSet().toList()}',
+          );
+          debugPrint(
+            '📊 Company industry from profile: "${_companyProfile!.industry!}"',
+          );
+
+          _industryPeData = allIndustryData
+              .where((data) => data.industry == _companyProfile!.industry!)
+              .toList();
+          debugPrint(
+            '📊 Exact industry match found ${_industryPeData.length} records',
+          );
+
+          // If no exact match, try case-insensitive match
+          if (_industryPeData.isEmpty) {
+            debugPrint(
+              '📊 No exact industry match, trying case-insensitive search',
+            );
+            _industryPeData = allIndustryData
+                .where(
+                  (data) =>
+                      data.industry.toLowerCase() ==
+                      _companyProfile!.industry!.toLowerCase(),
+                )
+                .toList();
+            debugPrint(
+              '📊 Case-insensitive industry search found ${_industryPeData.length} matches',
+            );
+
+            // If still no match, try partial match
+            if (_industryPeData.isEmpty) {
+              debugPrint(
+                '📊 No case-insensitive industry match, trying partial match',
+              );
+              _industryPeData = allIndustryData
+                  .where(
+                    (data) =>
+                        data.industry.toLowerCase().contains(
+                          _companyProfile!.industry!.toLowerCase(),
+                        ) ||
+                        _companyProfile!.industry!.toLowerCase().contains(
+                          data.industry.toLowerCase(),
+                        ),
+                  )
+                  .toList();
+              debugPrint(
+                '📊 Partial industry match found ${_industryPeData.length} matches',
+              );
+            }
+          }
+        }
+
+        debugPrint(
+          '📊 Final _industryPeData length: ${_industryPeData.length}',
+        );
+
+        if (_industryPeData.isNotEmpty) {
+          debugPrint(
+            '📊 Sample industry P/E data: ${_industryPeData.first.industry} - ${_industryPeData.first.pe}',
+          );
+        } else {
+          debugPrint(
+            '⚠️ No matching industry data found. Available industries: ${allIndustryData.map((d) => d.industry).toList()}',
+          );
+        }
+      } else {
+        debugPrint('📊 No industry data available in company profile');
       }
     } catch (e) {
       debugPrint('❌ Error fetching sector P/E data: $e');
