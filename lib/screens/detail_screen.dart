@@ -5522,32 +5522,32 @@ class _DetailScreenState extends State<DetailScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          // P/E Subheading
+          // Price to Earnings Subheading
           Text(
-            'P/E',
+            'Price to Earnings',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
               color: theme.colorScheme.primary,
             ),
           ),
           const SizedBox(height: 8),
-          // Stock P/E Card
-          if (stockPeRatio != null) ...[
+          // Company P/E Card
+          if (stockPeRatio != null && _stockDetail != null) ...[
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                color: theme.colorScheme.primaryContainer.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: theme.colorScheme.primary.withOpacity(0.2),
+                  color: theme.colorScheme.primary.withOpacity(0.3),
                 ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'Stock P/E: ',
+                    '${_stockDetail!.name}: ',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w500,
                       color: theme.colorScheme.onSurface,
@@ -5604,17 +5604,24 @@ class _DetailScreenState extends State<DetailScreen> {
     // Calculate percentage difference for P/E comparison
     String? percentageDiff;
     Color? diffColor;
+    String? valuationStatus;
 
     if (stockValue != null) {
       final comparisonValue = double.tryParse(value);
       if (comparisonValue != null) {
         final diff = ((stockValue - comparisonValue) / comparisonValue) * 100;
         percentageDiff = '${diff >= 0 ? '+' : ''}${diff.toStringAsFixed(1)}%';
-        diffColor = diff < 0
-            ? Colors.green
-            : diff > 0
-            ? Colors.red
-            : Colors.grey;
+
+        if (diff < 0) {
+          diffColor = Colors.green;
+          valuationStatus = 'Undervalued';
+        } else if (diff > 0) {
+          diffColor = Colors.red;
+          valuationStatus = 'Overvalued';
+        } else {
+          diffColor = Colors.grey;
+          valuationStatus = 'Fair value';
+        }
       }
     }
 
@@ -5629,7 +5636,7 @@ class _DetailScreenState extends State<DetailScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Title and Value
+          // Left side: Title, Value, ValueType
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -5643,7 +5650,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$value ${valueType == 'Performance' ? '%' : ''}',
+                  value,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.onSurface,
@@ -5658,58 +5665,49 @@ class _DetailScreenState extends State<DetailScreen> {
               ],
             ),
           ),
-          // Percentage Difference
-          if (percentageDiff != null && diffColor != null) ...[
+          // Right side: Stock P/E, Percentage, Valuation Status
+          if (stockValue != null) ...[
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Stock P/E above percentage
+                // Stock P/E with symbol
                 Text(
-                  '${_stockDetail?.symbol ?? 'N/A'}: ${stockValue?.toStringAsFixed(1) ?? 'N/A'}',
+                  '${_stockDetail?.symbol ?? 'N/A'}: ${stockValue.toStringAsFixed(1)}',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: diffColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    percentageDiff,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: diffColor,
-                      fontWeight: FontWeight.w600,
+                // Percentage difference
+                if (percentageDiff != null && diffColor != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: diffColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      percentageDiff,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: diffColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  () {
-                    final comparisonValue = double.tryParse(value);
-                    if (comparisonValue != null && stockValue != null) {
-                      final diff =
-                          ((stockValue - comparisonValue) / comparisonValue) *
-                          100;
-                      return diff < 0
-                          ? 'Undervalued'
-                          : diff > 0
-                          ? 'Overvalued'
-                          : 'Fair value';
-                    }
-                    return '';
-                  }(),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: diffColor,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 2),
+                  // Valuation status
+                  Text(
+                    valuationStatus ?? '',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: diffColor,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
