@@ -62,6 +62,7 @@ class _DetailScreenState extends State<DetailScreen> {
   List<RevenueSegmentation> _revenueSegmentation = [];
   List<RevenueSegmentation> _revenueGeoSegmentation = [];
   bool _showGeographicRevenue = false;
+  bool _isRevenueSegmentationLoading = false;
   CompanyProfile? _companyProfile;
   bool _isLoading = true;
   bool _isFavorite = false;
@@ -91,6 +92,7 @@ class _DetailScreenState extends State<DetailScreen> {
   void _initializeScreen() {
     // Get symbol from widget parameter or route arguments
     _stockSymbol = widget.symbol;
+    _isRevenueSegmentationLoading = true;
 
     if (_stockSymbol == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -896,9 +898,13 @@ class _DetailScreenState extends State<DetailScreen> {
   Widget _buildRevenueSegmentationSection(ThemeData theme) {
     // Decide which dataset to show based on the toggle
     if (!_showGeographicRevenue) {
-      if (_revenueSegmentation.isEmpty) return const SizedBox.shrink();
+      if (_revenueSegmentation.isEmpty || _isRevenueSegmentationLoading) {
+        return _buildRevenueSegmentationLoadingCard(theme);
+      }
     } else {
-      if (_revenueGeoSegmentation.isEmpty) return const SizedBox.shrink();
+      if (_revenueGeoSegmentation.isEmpty || _isRevenueSegmentationLoading) {
+        return _buildRevenueSegmentationLoadingCard(theme);
+      }
     }
 
     // Get the most recent segmentation data based on current mode
@@ -943,39 +949,71 @@ class _DetailScreenState extends State<DetailScreen> {
                 color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: ToggleButtons(
-                isSelected: [!_showGeographicRevenue, _showGeographicRevenue],
-                onPressed: (index) async {
-                  if (index == 0) {
-                    if (_showGeographicRevenue) {
-                      setState(() => _showGeographicRevenue = false);
-                    }
-                  } else {
-                    // switch to geographic
-                    if (!_showGeographicRevenue) {
-                      setState(() => _showGeographicRevenue = true);
-                    }
-                    // fetch geographic data if needed
-                    if (_revenueGeoSegmentation.isEmpty) {
-                      await _fetchRevenueGeographicSegmentation();
-                      if (mounted) {
-                        setState(() {});
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      if (_showGeographicRevenue) {
+                        setState(() => _showGeographicRevenue = false);
                       }
-                    }
-                  }
-                },
-                borderRadius: BorderRadius.circular(8),
-                selectedBorderColor: theme.colorScheme.primary,
-                selectedColor: theme.colorScheme.onPrimary,
-                fillColor: theme.colorScheme.primary.withOpacity(0.1),
-                children: const [
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text('Product'),
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: !_showGeographicRevenue
+                            ? theme.colorScheme.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Product',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: !_showGeographicRevenue
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Text('Geography'),
+                  GestureDetector(
+                    onTap: () async {
+                      if (!_showGeographicRevenue) {
+                        setState(() => _showGeographicRevenue = true);
+                        // fetch geographic data if needed
+                        if (_revenueGeoSegmentation.isEmpty) {
+                          await _fetchRevenueGeographicSegmentation();
+                          if (mounted) {
+                            setState(() {});
+                          }
+                        }
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _showGeographicRevenue
+                            ? theme.colorScheme.primary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'Geography',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: _showGeographicRevenue
+                              ? theme.colorScheme.onPrimary
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -992,6 +1030,59 @@ class _DetailScreenState extends State<DetailScreen> {
           _buildRevenueSegmentationChart(theme, latestSegmentation),
           const SizedBox(height: 20),
           _buildRevenueSegmentationList(theme, latestSegmentation),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRevenueSegmentationLoadingCard(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.business_outlined,
+                color: theme.colorScheme.primary,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Revenue by Product',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.hourglass_empty,
+                  size: 48,
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Loading revenue data...',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1351,7 +1442,7 @@ class _DetailScreenState extends State<DetailScreen> {
     final target = _priceTarget!;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -9340,6 +9431,8 @@ class _DetailScreenState extends State<DetailScreen> {
   Future<void> _fetchRevenueSegmentation() async {
     if (_stockSymbol == null) return;
 
+    setState(() => _isRevenueSegmentationLoading = true);
+
     try {
       final apiService = ApiService();
       _revenueSegmentation = await apiService.getRevenueProductSegmentation(
@@ -9347,11 +9440,17 @@ class _DetailScreenState extends State<DetailScreen> {
       );
     } catch (e) {
       debugPrint('Error fetching revenue segmentation: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isRevenueSegmentationLoading = false);
+      }
     }
   }
 
   Future<void> _fetchRevenueGeographicSegmentation() async {
     if (_stockSymbol == null) return;
+
+    setState(() => _isRevenueSegmentationLoading = true);
 
     try {
       final apiService = ApiService();
@@ -9359,6 +9458,10 @@ class _DetailScreenState extends State<DetailScreen> {
           .getRevenueGeographicSegmentation(_stockSymbol!);
     } catch (e) {
       debugPrint('Error fetching revenue geographic segmentation: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isRevenueSegmentationLoading = false);
+      }
     }
   }
 
