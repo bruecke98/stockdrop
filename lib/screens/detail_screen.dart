@@ -5531,13 +5531,36 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          // Stock P/E Sub-subheading
+          // Stock P/E Card
           if (stockPeRatio != null) ...[
-            Text(
-              'Stock P/E: ${stockPeRatio.toStringAsFixed(1)}',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface,
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Stock P/E: ',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    stockPeRatio.toStringAsFixed(1),
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -5547,7 +5570,7 @@ class _DetailScreenState extends State<DetailScreen> {
             _buildFullWidthComparisonCard(
               title: _sectorPeData.first.sector,
               value: _sectorPeData.first.pe.toStringAsFixed(1),
-              valueType: 'P/E Ratio',
+              valueType: 'Sector P/E',
               stockValue: stockPeRatio,
               theme: theme,
               isSector: true,
@@ -5559,7 +5582,7 @@ class _DetailScreenState extends State<DetailScreen> {
             _buildFullWidthComparisonCard(
               title: _industryPeData.first.industry,
               value: _industryPeData.first.pe.toStringAsFixed(1),
-              valueType: 'P/E Ratio',
+              valueType: 'Industry P/E',
               stockValue: stockPeRatio,
               theme: theme,
               isSector: false,
@@ -5637,19 +5660,57 @@ class _DetailScreenState extends State<DetailScreen> {
           ),
           // Percentage Difference
           if (percentageDiff != null && diffColor != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: diffColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                percentageDiff,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: diffColor,
-                  fontWeight: FontWeight.w600,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Stock P/E above percentage
+                Text(
+                  '${_stockDetail?.symbol ?? 'N/A'}: ${stockValue?.toStringAsFixed(1) ?? 'N/A'}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: diffColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    percentageDiff,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: diffColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  () {
+                    final comparisonValue = double.tryParse(value);
+                    if (comparisonValue != null && stockValue != null) {
+                      final diff =
+                          ((stockValue - comparisonValue) / comparisonValue) *
+                          100;
+                      return diff < 0
+                          ? 'Undervalued'
+                          : diff > 0
+                          ? 'Overvalued'
+                          : 'Fair value';
+                    }
+                    return '';
+                  }(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: diffColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ],
         ],
