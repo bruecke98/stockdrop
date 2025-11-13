@@ -846,17 +846,8 @@ class _HomeScreenState extends State<HomeScreen> {
     required bool isLoading,
     required VoidCallback onTap,
   }) {
-    // Determine border color based on change (less strong)
-    Color borderColor;
-    if (index == null || isLoading) {
-      borderColor = Colors.blue.shade300;
-    } else if (index.changePercent > 0) {
-      borderColor = Colors.green.shade400;
-    } else if (index.changePercent < 0) {
-      borderColor = Colors.red.shade400;
-    } else {
-      borderColor = Colors.blue.shade300;
-    }
+    // Determine border color based on change (grey borders)
+    Color borderColor = Colors.grey.shade400;
 
     return Card(
       elevation: 2,

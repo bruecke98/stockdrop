@@ -161,7 +161,7 @@ class _IndustryScreenState extends State<IndustryScreen> {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                childAspectRatio: 1.2,
+                childAspectRatio: 1.0,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
               ),
@@ -194,7 +194,7 @@ class _IndustryScreenState extends State<IndustryScreen> {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -269,8 +269,20 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
       final apiService = ApiService();
       final stocks = await apiService.getStocksBySector(widget.industry.sector);
 
+      // Filter to only show stocks that fell (negative change percent) and sort by biggest losers
+      final fallenStocks =
+          stocks
+              .where(
+                (stock) =>
+                    stock.changePercent != null && stock.changePercent < 0,
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.changePercent.compareTo(b.changePercent),
+            ); // Most negative first
+
       setState(() {
-        _stocks = stocks;
+        _stocks = fallenStocks;
         _isLoading = false;
       });
     } catch (e) {
@@ -369,7 +381,7 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_stocks.length} stocks available',
+                          '${_stocks.length} stocks with losses',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -385,7 +397,7 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
 
             // Stocks List
             Text(
-              'Top Stocks',
+              'Biggest Losers',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

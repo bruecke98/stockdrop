@@ -74,6 +74,7 @@ class _ChartWidgetState extends State<ChartWidget> {
   String? _errorMessage;
   double? _minPrice;
   double? _maxPrice;
+  double? _priceAvg50;
   late String _selectedPeriod;
 
   /// Available time periods for the chart
@@ -284,17 +285,19 @@ class _ChartWidgetState extends State<ChartWidget> {
 
   /// Calculate 50-day moving average from chart data
   List<FlSpot> _calculateMovingAverage50() {
-    if (_chartData.length < 50) return [];
+    if (_chartData.isEmpty) return [];
 
     final movingAverageSpots = <FlSpot>[];
 
-    for (int i = 49; i < _chartData.length; i++) {
+    for (int i = 0; i < _chartData.length; i++) {
+      final startIndex = (i - 49).clamp(0, i);
+      final count = i - startIndex + 1;
       double sum = 0;
-      for (int j = i - 49; j <= i; j++) {
+      for (int j = startIndex; j <= i; j++) {
         sum += _chartData[j].price;
       }
-      final average = sum / 50;
-      movingAverageSpots.add(FlSpot((i - 49).toDouble(), average));
+      final average = sum / count;
+      movingAverageSpots.add(FlSpot(i.toDouble(), average));
     }
 
     return movingAverageSpots;
