@@ -76,7 +76,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       onRefresh: _refreshStockPrices,
       child: ListView.builder(
         itemCount: _favoriteStocks.length,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(
+          top: 16,
+          left: 16,
+          right: 16,
+          bottom: 16,
+        ),
         itemBuilder: (context, index) {
           final stock = _favoriteStocks[index];
 
@@ -93,10 +98,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 },
               ),
               Positioned(
-                bottom: 8,
-                right: 8,
+                top: 16,
+                left: 180,
                 child: IconButton(
-                  icon: const Icon(Icons.delete),
+                  icon: const Icon(Icons.delete, size: 20),
                   color: theme.colorScheme.error,
                   onPressed: () => _showDeleteConfirmation(stock),
                 ),
@@ -256,16 +261,45 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     }
 
     final symbolString = symbols.join(',');
-    final url =
+
+    // Get detailed quotes for price and change data
+    final quotesUrl =
         'https://financialmodelingprep.com/api/v3/quote/$symbolString?apikey=$apiKey';
+    final quotesResponse = await http.get(Uri.parse(quotesUrl));
 
-    final response = await http.get(Uri.parse(url));
+    if (quotesResponse.statusCode == 200) {
+      final List<dynamic> quotesData = json.decode(quotesResponse.body);
 
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((item) => FavoriteStock.fromJson(item)).toList();
+      // Get profile data individually for each stock (stable/profile uses query params)
+      final profileFutures = symbols.map((symbol) async {
+        final profileUrl =
+            'https://financialmodelingprep.com/stable/profile?symbol=$symbol&apikey=$apiKey';
+        final response = await http.get(Uri.parse(profileUrl));
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          return data.isNotEmpty ? data[0] : null; // Profile API returns array
+        }
+        return null;
+      });
+
+      final profileResults = await Future.wait(profileFutures);
+
+      // Create maps for easy lookup
+      final quotesMap = {for (var quote in quotesData) quote['symbol']: quote};
+      final profilesMap = {
+        for (int i = 0; i < symbols.length; i++) symbols[i]: profileResults[i],
+      };
+
+      // Combine quote and profile data
+      return symbols.map((symbol) {
+        final quote = quotesMap[symbol];
+        final profile = profilesMap[symbol];
+        return FavoriteStock.fromJson(quote ?? {}, profile);
+      }).toList();
     } else {
-      throw Exception('Failed to fetch stock details: ${response.statusCode}');
+      throw Exception(
+        'Failed to fetch stock details: ${quotesResponse.statusCode}',
+      );
     }
   }
 
@@ -366,9 +400,9 @@ class FavoriteStock implements StockData {
   @override
   double? get beta => _beta;
   @override
-  String? get sector => null;
+  String? get sector => _sector;
   @override
-  double? get marketCap => null;
+  double? get marketCap => _marketCap;
   @override
   String? get exchangeShortName => _exchangeShortName;
   @override
@@ -381,6 +415,8 @@ class FavoriteStock implements StockData {
   final double _price;
   final double _changePercentValue;
   final double? _beta;
+  final String? _sector;
+  final double? _marketCap;
   final String? _exchangeShortName;
   final String? _country;
 
@@ -391,24 +427,51 @@ class FavoriteStock implements StockData {
     double? changesPercentage,
     String? exchangeShortName,
     double? beta,
+    String? sector,
+    double? marketCap,
     String? country,
   }) : _symbol = symbol,
        _name = name,
        _price = price ?? 0.0,
        _changePercentValue = changesPercentage ?? 0.0,
        _beta = beta,
+       _sector = sector,
+       _marketCap = marketCap,
        _exchangeShortName = exchangeShortName,
        _country = country;
 
-  factory FavoriteStock.fromJson(Map<String, dynamic> json) {
+  factory FavoriteStock.fromJson(
+    Map<String, dynamic> quoteJson, [
+    Map<String, dynamic>? profileJson,
+  ]) {
+    // Use profile data for beta/sector/marketCap/country if available
+    final beta = profileJson != null
+        ? (profileJson['beta'] as num?)?.toDouble()
+        : (quoteJson['beta'] as num?)?.toDouble(); // Fallback to quote data
+
+    final sector = profileJson != null
+        ? profileJson['sector'] as String?
+        : null;
+
+    final marketCap = profileJson != null
+        ? (profileJson['mktCap'] as num?)?.toDouble() ??
+              (profileJson['marketCap'] as num?)?.toDouble()
+        : null;
+
+    final country = profileJson != null
+        ? profileJson['country'] as String?
+        : quoteJson['country'] as String?; // Fallback to quote data
+
     return FavoriteStock(
-      symbol: json['symbol']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      price: (json['price'] as num?)?.toDouble(),
-      changesPercentage: (json['changesPercentage'] as num?)?.toDouble(),
-      exchangeShortName: json['exchangeShortName']?.toString(),
-      beta: (json['beta'] as num?)?.toDouble(),
-      country: json['country']?.toString(),
+      symbol: quoteJson['symbol']?.toString() ?? '',
+      name: quoteJson['name']?.toString() ?? '',
+      price: (quoteJson['price'] as num?)?.toDouble(),
+      changesPercentage: (quoteJson['changesPercentage'] as num?)?.toDouble(),
+      exchangeShortName: quoteJson['exchangeShortName']?.toString(),
+      beta: beta,
+      country: country,
+      sector: sector,
+      marketCap: marketCap,
     );
   }
 }
