@@ -131,11 +131,12 @@ class _SearchScreenState extends State<SearchScreen> {
               },
             ),
             Positioned(
-              bottom: 8,
-              right: 8,
+              bottom: 2,
+              right: 32,
               child: IconButton(
                 icon: Icon(
                   isFavorite ? Icons.favorite : Icons.favorite_border,
+                  size: 20,
                   color: isFavorite
                       ? Colors.red
                       : theme.colorScheme.onSurfaceVariant,

@@ -98,8 +98,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 },
               ),
               Positioned(
-                top: 16,
-                left: 180,
+                bottom: 2,
+                right: 32,
                 child: IconButton(
                   icon: const Icon(Icons.delete, size: 20),
                   color: theme.colorScheme.error,

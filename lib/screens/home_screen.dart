@@ -223,6 +223,72 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Calculate time until market opens or closes
+  String _getMarketTimeStatus(MarketHours market) {
+    try {
+      final now = DateTime.now();
+      final currentTime = TimeOfDay.fromDateTime(now);
+
+      // Parse opening and closing times
+      final openingParts = market.openingHour.split(':');
+      final closingParts = market.closingHour.split(':');
+
+      if (openingParts.length >= 2 && closingParts.length >= 2) {
+        final openingHour = int.tryParse(openingParts[0]) ?? 9;
+        final openingMinute = int.tryParse(openingParts[1]) ?? 30;
+        final closingHour = int.tryParse(closingParts[0]) ?? 16;
+        final closingMinute = int.tryParse(closingParts[1]) ?? 0;
+
+        final openingTime = TimeOfDay(hour: openingHour, minute: openingMinute);
+        final closingTime = TimeOfDay(hour: closingHour, minute: closingMinute);
+
+        if (market.isMarketOpen) {
+          // Market is open, show time until closing
+          final minutesUntilClose = _calculateMinutesDifference(
+            currentTime,
+            closingTime,
+          );
+          if (minutesUntilClose <= 60) {
+            return 'closes in ${minutesUntilClose}m';
+          } else {
+            final hoursUntilClose = (minutesUntilClose / 60).round();
+            return 'closes in ${hoursUntilClose}h';
+          }
+        } else {
+          // Market is closed, show time until opening
+          final minutesUntilOpen = _calculateMinutesDifference(
+            currentTime,
+            openingTime,
+          );
+          if (minutesUntilOpen <= 60) {
+            return 'opens in ${minutesUntilOpen}m';
+          } else {
+            final hoursUntilOpen = (minutesUntilOpen / 60).round();
+            return 'opens in ${hoursUntilOpen}h';
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback if parsing fails
+    }
+
+    // Fallback to original display
+    return market.isMarketOpen ? 'Open' : 'Closed';
+  }
+
+  /// Calculate minutes difference between two TimeOfDay objects
+  int _calculateMinutesDifference(TimeOfDay from, TimeOfDay to) {
+    final fromMinutes = from.hour * 60 + from.minute;
+    final toMinutes = to.hour * 60 + to.minute;
+
+    if (toMinutes >= fromMinutes) {
+      return toMinutes - fromMinutes;
+    } else {
+      // Next day
+      return (24 * 60) - fromMinutes + toMinutes;
+    }
+  }
+
   Widget _buildMarketHoursCard(ThemeData theme, MarketHours market) {
     return Card(
       elevation: 2,
@@ -242,13 +308,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           children: [
             // Market status indicator
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: market.isMarketOpen ? Colors.green : Colors.grey,
-              ),
+            Icon(
+              market.isMarketOpen ? Icons.wb_sunny : Icons.nightlight_round,
+              size: 16,
+              color: market.isMarketOpen ? Colors.lightGreen : Colors.grey,
             ),
             const SizedBox(width: 12),
 
@@ -266,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${market.openingHour} - ${market.closingHour}',
+                    _getMarketTimeStatus(market),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -783,23 +846,23 @@ class _HomeScreenState extends State<HomeScreen> {
     required bool isLoading,
     required VoidCallback onTap,
   }) {
-    // Determine border color based on change
+    // Determine border color based on change (less strong)
     Color borderColor;
     if (index == null || isLoading) {
-      borderColor = Colors.blue.shade700;
+      borderColor = Colors.blue.shade300;
     } else if (index.changePercent > 0) {
-      borderColor = Colors.green.shade700;
+      borderColor = Colors.green.shade400;
     } else if (index.changePercent < 0) {
-      borderColor = Colors.red.shade700;
+      borderColor = Colors.red.shade400;
     } else {
-      borderColor = Colors.blue.shade700;
+      borderColor = Colors.blue.shade300;
     }
 
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: borderColor, width: 2),
+        side: BorderSide(color: borderColor, width: 1),
       ),
       color: Colors.black,
       child: InkWell(
@@ -858,17 +921,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             horizontal: 4,
                             vertical: 1,
                           ),
-                          decoration: BoxDecoration(
-                            color: index.changePercent >= 0
-                                ? Colors.green.shade800
-                                : Colors.red.shade800,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
                           child: Text(
                             index.formattedChangePercent,
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w500,
-                              color: Colors.white,
+                              color: index.changePercent >= 0
+                                  ? Colors.green
+                                  : Colors.red,
                               fontSize: 10,
                             ),
                           ),
@@ -880,16 +939,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             horizontal: 4,
                             vertical: 1,
                           ),
-                          decoration: BoxDecoration(
-                            color: index.change >= 0
-                                ? Colors.green.shade800
-                                : Colors.red.shade800,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
                           child: Text(
                             index.formattedChange,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.white,
+                              color: index.change >= 0
+                                  ? Colors.green
+                                  : Colors.red,
                               fontSize: 10,
                             ),
                           ),
