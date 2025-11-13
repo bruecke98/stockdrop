@@ -93,6 +93,7 @@ class _StockCardExampleState extends State<StockCardExample> {
         price: 175.43,
         change: 2.15,
         changePercent: 1.24,
+        lastAnnualDividend: 0.96, // Test dividend data
       ),
       Stock(
         symbol: 'GOOGL',

@@ -194,6 +194,15 @@ class ApiService {
         return [];
       }
 
+      // Create a map of screener data by symbol for easy lookup
+      final Map<String, dynamic> screenerMap = {};
+      for (final item in screenerData) {
+        final symbol = item['symbol']?.toString();
+        if (symbol != null) {
+          screenerMap[symbol] = item;
+        }
+      }
+
       // Extract symbols for quote lookup
       final symbols = screenerData
           .take(20) // Limit to first 20 for performance
@@ -208,9 +217,51 @@ class ApiService {
       }
 
       // Step 2: Get real-time quotes for these symbols
-      final stocks = await _getMultipleQuotes(symbols);
+      final quotesUrl = Uri.parse(
+        '$_baseUrl/quote/${symbols.join(',')}?apikey=$_apiKey',
+      );
+      final quotesResponse = await http.get(quotesUrl);
 
-      // Step 3: Sort by market cap (largest first)
+      if (quotesResponse.statusCode != 200) {
+        throw ApiException(
+          'Stock quotes failed',
+          quotesResponse.statusCode,
+          quotesResponse.body,
+        );
+      }
+
+      final List<dynamic> quotesData = json.decode(quotesResponse.body);
+
+      // Step 3: Merge screener and quotes data
+      final mergedStocks = quotesData.map((quote) {
+        final symbol = quote['symbol']?.toString();
+        final screenerInfo = symbol != null ? screenerMap[symbol] : null;
+
+        // Merge the data, with quotes taking precedence for price data
+        return <String, dynamic>{
+          ...?screenerInfo, // Spread screener data first (beta, sector, marketCap, exchange)
+          ...quote, // Spread quotes data (price, changesPercentage, volume)
+        };
+      }).toList();
+
+      // Step 4: Filter for valid stocks
+      final validStocks = mergedStocks.where((item) {
+        final price = (item['price'] as num?)?.toDouble() ?? 0.0;
+        final volume = (item['volume'] as num?)?.toDouble() ?? 0.0;
+        final marketCap = (item['marketCap'] as num?)?.toDouble() ?? 0.0;
+
+        // Basic validation to ensure we have good data
+        return price > 0 && volume > 0 && marketCap > 0;
+      }).toList();
+
+      if (validStocks.isEmpty) {
+        debugPrint('🏭 No valid stocks found in sector: $sector');
+        return [];
+      }
+
+      // Step 5: Create Stock objects from merged data and sort by market cap
+      final stocks = validStocks.map((item) => Stock.fromJson(item)).toList();
+
       stocks.sort((a, b) => (b.marketCap ?? 0).compareTo(a.marketCap ?? 0));
 
       final result = stocks.take(10).toList();

@@ -25,6 +25,7 @@ class Stock {
   final DateTime? lastUpdated;
   final int? timestamp;
   final String? country;
+  final double? lastAnnualDividend;
 
   Stock({
     required this.symbol,
@@ -49,6 +50,7 @@ class Stock {
     this.lastUpdated,
     this.timestamp,
     this.country,
+    this.lastAnnualDividend,
   });
 
   /// Create Stock from JSON (typically from API response)
@@ -59,6 +61,7 @@ class Stock {
       price: _parseDouble(json['price']) ?? 0.0,
       change: _parseDouble(json['change']) ?? 0.0,
       changePercent:
+          _parseDouble(json['changesPercentage']) ??
           _parseDouble(json['changePercentage']) ??
           _parseDouble(json['changePercent']) ??
           0.0,
@@ -85,6 +88,7 @@ class Stock {
                   )
                 : null),
       country: json['country']?.toString(),
+      lastAnnualDividend: _parseDouble(json['lastAnnualDividend']),
     );
   }
 
@@ -112,6 +116,7 @@ class Stock {
       'previousClose': previousClose,
       'timestamp': timestamp,
       'lastUpdated': lastUpdated?.toIso8601String(),
+      'lastAnnualDividend': lastAnnualDividend,
     };
   }
 
@@ -285,6 +290,7 @@ class Stock {
     double? previousClose,
     DateTime? lastUpdated,
     int? timestamp,
+    double? lastAnnualDividend,
   }) {
     return Stock(
       symbol: symbol ?? this.symbol,
@@ -308,6 +314,7 @@ class Stock {
       previousClose: previousClose ?? this.previousClose,
       lastUpdated: lastUpdated ?? this.lastUpdated,
       timestamp: timestamp ?? this.timestamp,
+      lastAnnualDividend: lastAnnualDividend ?? this.lastAnnualDividend,
     );
   }
 

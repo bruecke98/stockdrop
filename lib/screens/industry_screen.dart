@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:stockdrop/services/api_service.dart';
 import 'package:stockdrop/models/stock.dart';
+import 'package:stockdrop/models/market_hours.dart';
 import 'package:stockdrop/screens/detail_screen.dart';
 import 'package:stockdrop/widgets/enhanced_stock_card.dart';
 
@@ -253,10 +257,14 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
   bool _isLoading = true;
   String? _error;
 
+  // Market hours data
+  List<MarketHours> _marketHours = [];
+
   @override
   void initState() {
     super.initState();
     _loadIndustryStocks();
+    _fetchMarketHours();
   }
 
   Future<void> _loadIndustryStocks() async {
@@ -269,20 +277,18 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
       final apiService = ApiService();
       final stocks = await apiService.getStocksBySector(widget.industry.sector);
 
-      // Filter to only show stocks that fell (negative change percent) and sort by biggest losers
-      final fallenStocks =
-          stocks
-              .where(
-                (stock) =>
-                    stock.changePercent != null && stock.changePercent < 0,
-              )
-              .toList()
-            ..sort(
-              (a, b) => a.changePercent.compareTo(b.changePercent),
-            ); // Most negative first
+      // Sort by market cap (largest first) to show most important stocks
+      stocks.sort((a, b) => (b.marketCap ?? 0).compareTo(a.marketCap ?? 0));
+
+      // Debug: Check change percentages
+      for (final stock in stocks.take(3)) {
+        debugPrint(
+          '🏭 Stock ${stock.symbol}: changePercent = ${stock.changePercent}',
+        );
+      }
 
       setState(() {
-        _stocks = fallenStocks;
+        _stocks = stocks.take(10).toList(); // Limit to top 10 for performance
         _isLoading = false;
       });
     } catch (e) {
@@ -290,6 +296,59 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
         _error = e.toString();
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchMarketHours() async {
+    try {
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        throw Exception('FMP API key not found in environment variables');
+      }
+
+      final url =
+          'https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch market hours: ${response.statusCode}');
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      final allMarketHours = data
+          .map((item) => MarketHours.fromJson(item))
+          .toList();
+
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, HKSE, LSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'HKSE', 'LSE'];
+      final filteredMarketHours = allMarketHours
+          .where((market) => targetExchanges.contains(market.exchange))
+          .toList();
+
+      // Sort by region: Americas, Europe, Asia
+      filteredMarketHours.sort((a, b) {
+        final regionOrder = {
+          // Americas
+          'NYSE': 1,
+          'NASDAQ': 2,
+          // Europe
+          'XETRA': 3,
+          'LSE': 4,
+          // Asia
+          'NSE': 5,
+          'HKSE': 6,
+        };
+
+        final aOrder = regionOrder[a.exchange] ?? 99;
+        final bOrder = regionOrder[b.exchange] ?? 99;
+        return aOrder.compareTo(bOrder);
+      });
+
+      setState(() {
+        _marketHours = filteredMarketHours;
+      });
+    } catch (e) {
+      // Market hours failed to load, continue without them
     }
   }
 
@@ -381,7 +440,7 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${_stocks.length} stocks with losses',
+                          '${_stocks.length} stocks in sector',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -397,7 +456,7 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
 
             // Stocks List
             Text(
-              'Biggest Losers',
+              'Top Stocks',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
@@ -412,6 +471,7 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
                 final stock = _stocks[index];
                 return EnhancedStockCard(
                   stock: StockAdapter(stock),
+                  marketHours: _marketHours,
                   onTap: () => _navigateToStockDetail(stock),
                 );
               },
@@ -488,28 +548,6 @@ class _IndustryStocksScreenState extends State<IndustryStocksScreen> {
         ),
       ),
     );
-  }
-
-  String _getMarketCapCategory(double marketCap) {
-    if (marketCap >= 200e9) {
-      // $200B+
-      return 'Mega Cap';
-    } else if (marketCap >= 10e9) {
-      // $10B-$200B
-      return 'Large Cap';
-    } else if (marketCap >= 2e9) {
-      // $2B-$10B
-      return 'Mid Cap';
-    } else if (marketCap >= 300e6) {
-      // $300M-$2B
-      return 'Small Cap';
-    } else if (marketCap >= 50e6) {
-      // $50M-$300M
-      return 'Micro Cap';
-    } else {
-      // <$50M
-      return 'Nano Cap';
-    }
   }
 
   void _navigateToStockDetail(Stock stock) {

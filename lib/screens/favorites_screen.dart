@@ -408,7 +408,8 @@ class FavoriteStock implements StockData {
   @override
   String? get country => _country;
 
-  double? get changesPercentage => _changePercentValue;
+  @override
+  double? get lastAnnualDividend => _lastAnnualDividend;
 
   final String _symbol;
   final String _name;
@@ -419,6 +420,7 @@ class FavoriteStock implements StockData {
   final double? _marketCap;
   final String? _exchangeShortName;
   final String? _country;
+  final double? _lastAnnualDividend;
 
   FavoriteStock({
     required String symbol,
@@ -430,6 +432,7 @@ class FavoriteStock implements StockData {
     String? sector,
     double? marketCap,
     String? country,
+    double? lastAnnualDividend,
   }) : _symbol = symbol,
        _name = name,
        _price = price ?? 0.0,
@@ -438,7 +441,8 @@ class FavoriteStock implements StockData {
        _sector = sector,
        _marketCap = marketCap,
        _exchangeShortName = exchangeShortName,
-       _country = country;
+       _country = country,
+       _lastAnnualDividend = lastAnnualDividend;
 
   factory FavoriteStock.fromJson(
     Map<String, dynamic> quoteJson, [
@@ -462,6 +466,14 @@ class FavoriteStock implements StockData {
         ? profileJson['country'] as String?
         : quoteJson['country'] as String?; // Fallback to quote data
 
+    final lastAnnualDividend = profileJson != null
+        ? (profileJson['lastDividend'] as num?)?.toDouble() ??
+              (profileJson['lastAnnualDividend'] as num?)?.toDouble() ??
+              (quoteJson['lastAnnualDividend'] as num?)?.toDouble() ??
+              (quoteJson['lastDividend'] as num?)?.toDouble()
+        : (quoteJson['lastAnnualDividend'] as num?)?.toDouble() ??
+              (quoteJson['lastDividend'] as num?)?.toDouble();
+
     return FavoriteStock(
       symbol: quoteJson['symbol']?.toString() ?? '',
       name: quoteJson['name']?.toString() ?? '',
@@ -472,6 +484,7 @@ class FavoriteStock implements StockData {
       country: country,
       sector: sector,
       marketCap: marketCap,
+      lastAnnualDividend: lastAnnualDividend,
     );
   }
 }

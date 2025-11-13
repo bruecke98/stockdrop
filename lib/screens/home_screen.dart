@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import '../widgets/commodity_card.dart';
 import '../widgets/enhanced_stock_card.dart';
 import '../screens/commodity_screen.dart';
@@ -24,6 +25,12 @@ class _HomeScreenState extends State<HomeScreen> {
   List<StockLoss> _stocks = [];
   bool _isLoading = false;
   String? _error;
+
+  // Load more functionality
+  bool _isLoadingMore = false;
+  int _currentStockCount = 10;
+  bool _hasMoreStocks = true;
+  List<StockLoss> _allAvailableStocks = []; // Store all available stocks for pagination
 
   // Index data for home screen cards
   Index? _sp500Index;
@@ -132,6 +139,11 @@ class _HomeScreenState extends State<HomeScreen> {
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate((context, index) {
+                    // Last item is the load more button
+                    if (index == _stocks.length) {
+                      return _buildLoadMoreButton(theme);
+                    }
+
                     final stock = _stocks[index];
                     return EnhancedStockCard(
                       stock: StockLossAdapter(stock),
@@ -144,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     );
-                  }, childCount: _stocks.length),
+                  }, childCount: _stocks.length + (_hasMoreStocks ? 1 : 0)),
                 ),
 
               // Commodities Section
@@ -226,8 +238,9 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Calculate time until market opens or closes
   String _getMarketTimeStatus(MarketHours market) {
     try {
-      final now = DateTime.now();
-      final currentTime = TimeOfDay.fromDateTime(now);
+      // Get current time in the market's time zone
+      final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
+      final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
 
       // Parse opening and closing times
       final openingParts = market.openingHour.split(':');
@@ -242,7 +255,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final openingTime = TimeOfDay(hour: openingHour, minute: openingMinute);
         final closingTime = TimeOfDay(hour: closingHour, minute: closingMinute);
 
-        if (market.isMarketOpen) {
+        // Determine if market is currently open based on market's local time
+        final isOpen = _isMarketOpenInTimezone(
+          currentTime,
+          openingTime,
+          closingTime,
+        );
+
+        if (isOpen) {
           // Market is open, show time until closing
           final minutesUntilClose = _calculateMinutesDifference(
             currentTime,
@@ -289,7 +309,97 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Get current time in the specified timezone
+  DateTime _getCurrentTimeInTimezone(String timezone) {
+    final now = DateTime.now().toUtc();
+    final offset = _getTimezoneOffset(timezone);
+    return now.add(Duration(hours: offset));
+  }
+
+  /// Get UTC offset for a timezone (in hours)
+  int _getTimezoneOffset(String timezone) {
+    // Common timezone mappings (standard time, DST not handled)
+    switch (timezone.toLowerCase()) {
+      case 'america/new_york':
+      case 'us/eastern':
+        return -5; // EST
+      case 'america/chicago':
+      case 'us/central':
+        return -6; // CST
+      case 'america/denver':
+      case 'us/mountain':
+        return -7; // MST
+      case 'america/los_angeles':
+      case 'us/pacific':
+        return -8; // PST
+      case 'europe/london':
+      case 'gb':
+      case 'gmt':
+        return 0; // GMT/BST
+      case 'europe/berlin':
+      case 'europe/paris':
+      case 'europe/rome':
+      case 'cet':
+        return 1; // CET/CEST
+      case 'asia/tokyo':
+      case 'jst':
+        return 9; // JST
+      case 'asia/shanghai':
+      case 'asia/hong_kong':
+      case 'hkt':
+      case 'cst':
+        return 8; // CST/HKT
+      case 'asia/mumbai':
+      case 'ist':
+        return 5; // IST
+      default:
+        return 0; // Default to UTC
+    }
+  }
+
+  /// Check if market is currently open based on timezone
+  bool _isMarketCurrentlyOpen(MarketHours market) {
+    try {
+      // Get current time in the market's time zone
+      final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
+      final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
+
+      // Parse opening and closing times
+      final openingParts = market.openingHour.split(':');
+      final closingParts = market.closingHour.split(':');
+
+      if (openingParts.length >= 2 && closingParts.length >= 2) {
+        final openingHour = int.tryParse(openingParts[0]) ?? 9;
+        final openingMinute = int.tryParse(openingParts[1]) ?? 30;
+        final closingHour = int.tryParse(closingParts[0]) ?? 16;
+        final closingMinute = int.tryParse(closingParts[1]) ?? 0;
+
+        final openingTime = TimeOfDay(hour: openingHour, minute: openingMinute);
+        final closingTime = TimeOfDay(hour: closingHour, minute: closingMinute);
+
+        return _isMarketOpenInTimezone(currentTime, openingTime, closingTime);
+      }
+    } catch (e) {
+      // Fallback to API data
+    }
+    return market.isMarketOpen;
+  }
+
+  /// Check if market is open based on current time in market's timezone
+  bool _isMarketOpenInTimezone(
+    TimeOfDay current,
+    TimeOfDay open,
+    TimeOfDay close,
+  ) {
+    final currentMinutes = current.hour * 60 + current.minute;
+    final openMinutes = open.hour * 60 + open.minute;
+    final closeMinutes = close.hour * 60 + close.minute;
+
+    return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+  }
+
   Widget _buildMarketHoursCard(ThemeData theme, MarketHours market) {
+    final isCurrentlyOpen = _isMarketCurrentlyOpen(market);
     return Card(
       elevation: 2,
       margin: EdgeInsets.zero,
@@ -299,7 +409,7 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: market.isMarketOpen
+            color: isCurrentlyOpen
                 ? Colors.green.shade700
                 : Colors.grey.shade400,
             width: 1,
@@ -309,9 +419,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             // Market status indicator
             Icon(
-              market.isMarketOpen ? Icons.wb_sunny : Icons.nightlight_round,
+              isCurrentlyOpen ? Icons.wb_sunny : Icons.nightlight_round,
               size: 16,
-              color: market.isMarketOpen ? Colors.lightGreen : Colors.grey,
+              color: isCurrentlyOpen ? Colors.lightGreen : Colors.grey,
             ),
             const SizedBox(width: 12),
 
@@ -388,31 +498,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CommodityScreen(
-                        commodityName: 'Gold',
-                        commoditySymbol: 'GCUSD',
-                        themeColor: Colors.amber,
-                        description:
-                            'Track gold commodity prices (GCUSD) with real-time data and historical charts.',
-                        marketInfo: 'Gold/USD pair\nCommodity tracking',
-                      ),
-                    ),
-                  );
-                },
-                child: Text(
-                  'View Details',
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontSize: 12,
-                  ),
                 ),
               ),
             ],
@@ -562,31 +647,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.onSurface,
-                ),
-              ),
-              const Spacer(),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const IndexScreen(
-                        indexName: 'S&P 500',
-                        indexSymbol: '^GSPC',
-                        themeColor: Colors.blue,
-                        description:
-                            'Track the S&P 500 index (^GSPC) with real-time data and historical charts.',
-                        marketInfo: 'S&P 500 Index\nLarge-cap stocks',
-                      ),
-                    ),
-                  );
-                },
-                child: Text(
-                  'View Details',
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontSize: 12,
-                  ),
                 ),
               ),
             ],
@@ -1117,7 +1177,31 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _fetchStocks() async {
+  Widget _buildLoadMoreButton(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: _isLoadingMore
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              ),
+            )
+          : ElevatedButton.icon(
+              onPressed: _loadMoreStocks,
+              icon: const Icon(Icons.expand_more),
+              label: const Text('Load More Stocks'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Future<void> _fetchStocks({int limit = 10, int offset = 0}) async {
     setState(() {
       _isLoading = true;
       _error = null;
@@ -1232,17 +1316,36 @@ class _HomeScreenState extends State<HomeScreen> {
         ); // Ascending order (most negative first)
       });
 
-      // Step 6: Take top 10 worst performers
-      final topLosers = validStocks
-          .take(10)
+      // Step 6: Convert all valid stocks to StockLoss objects for pagination
+      final allStockLosses = validStocks
           .map((item) => StockLoss.fromJson(item))
           .toList();
 
-      print('DEBUG: Successfully loaded ${topLosers.length} top losing stocks');
+      // Store all available stocks for pagination
+      _allAvailableStocks = allStockLosses;
+
+      // Take the requested range
+      final topLosers = allStockLosses
+          .skip(offset)
+          .take(limit)
+          .toList();
+
+      print('DEBUG: Successfully loaded ${topLosers.length} top losing stocks (offset: $offset, limit: $limit, total available: ${allStockLosses.length})');
 
       setState(() {
-        _stocks = topLosers;
+        if (offset == 0) {
+          // Initial load or refresh
+          _stocks = topLosers;
+          _currentStockCount = topLosers.length;
+          _hasMoreStocks = allStockLosses.length > _currentStockCount;
+        } else {
+          // Load more - append to existing stocks
+          _stocks.addAll(topLosers);
+          _currentStockCount += topLosers.length;
+          _hasMoreStocks = allStockLosses.length > _currentStockCount;
+        }
         _isLoading = false;
+        _isLoadingMore = false;
       });
     } catch (e) {
       print('DEBUG: Error fetching stocks: $e');
@@ -1253,7 +1356,32 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadMoreStocks() async {
+    if (_isLoadingMore || !_hasMoreStocks || _allAvailableStocks.isEmpty) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    // Load more stocks from the stored dataset
+    final nextStocks = _allAvailableStocks
+        .skip(_currentStockCount)
+        .take(10)
+        .toList();
+
+    // Simulate network delay for consistency
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    setState(() {
+      _stocks.addAll(nextStocks);
+      _currentStockCount += nextStocks.length;
+      _hasMoreStocks = _allAvailableStocks.length > _currentStockCount;
+      _isLoadingMore = false;
+    });
+  }
+
   Future<void> _refreshStocks() async {
+    _allAvailableStocks.clear(); // Clear stored data on refresh
     await _fetchStocks();
   }
 
@@ -1324,11 +1452,30 @@ class _HomeScreenState extends State<HomeScreen> {
           .map((item) => MarketHours.fromJson(item))
           .toList();
 
-      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, HKSE
-      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'HKSE'];
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, HKSE, LSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'HKSE', 'LSE'];
       final filteredMarketHours = allMarketHours
           .where((market) => targetExchanges.contains(market.exchange))
           .toList();
+
+      // Sort by region: Americas, Europe, Asia
+      filteredMarketHours.sort((a, b) {
+        final regionOrder = {
+          // Americas
+          'NYSE': 1,
+          'NASDAQ': 2,
+          // Europe
+          'XETRA': 3,
+          'LSE': 4,
+          // Asia
+          'NSE': 5,
+          'HKSE': 6,
+        };
+
+        final aOrder = regionOrder[a.exchange] ?? 99;
+        final bOrder = regionOrder[b.exchange] ?? 99;
+        return aOrder.compareTo(bOrder);
+      });
 
       setState(() {
         _marketHours = filteredMarketHours;
@@ -1359,6 +1506,7 @@ class StockLoss {
   final double? marketCap;
   final String? exchange;
   final String? country;
+  final double? lastAnnualDividend;
 
   StockLoss({
     required this.symbol,
@@ -1371,6 +1519,7 @@ class StockLoss {
     this.marketCap,
     this.exchange,
     this.country,
+    this.lastAnnualDividend,
   });
 
   factory StockLoss.fromJson(Map<String, dynamic> json) {
@@ -1385,6 +1534,7 @@ class StockLoss {
       marketCap: (json['marketCap'] as num?)?.toDouble(),
       exchange: json['exchange']?.toString(),
       country: json['country']?.toString(),
+      lastAnnualDividend: (json['lastAnnualDividend'] as num?)?.toDouble(),
     );
   }
 }

@@ -18,6 +18,7 @@ abstract class StockData {
   double? get marketCap;
   String? get exchangeShortName;
   String? get country;
+  double? get lastAnnualDividend;
 }
 
 /// Enhanced stock card widget that supports multiple stock model types
@@ -245,7 +246,7 @@ class EnhancedStockCard extends StatelessWidget {
                                           ),
                                         ),
                                         child: Text(
-                                          '${_getMarketCapCategory(stock.marketCap!)} (${_getFormattedMarketCap(stock.marketCap)})',
+                                          '${_getMarketCapCategory(stock.marketCap!)} ${_getFormattedMarketCap(stock.marketCap)}',
                                           style: theme.textTheme.bodySmall
                                               ?.copyWith(
                                                 color: _getMarketCapColor(
@@ -273,6 +274,34 @@ class EnhancedStockCard extends StatelessWidget {
                                         ),
                                       ],
                                     ],
+                                  ),
+                                ],
+                                // Dividends badge below market cap
+                                if (stock.lastAnnualDividend != null &&
+                                    stock.lastAnnualDividend! > 0) ...[
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: colorScheme.outline,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Dividends',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w500,
+                                            fontSize: 10,
+                                          ),
+                                    ),
                                   ),
                                 ],
                               ],
@@ -432,11 +461,11 @@ class EnhancedStockCard extends StatelessWidget {
       // Mega Cap - Gold color
       return const Color(0xFFFFD700);
     } else if (marketCap >= 10e9) {
-      // Large Cap - Blue
-      return Colors.blue;
+      // Large Cap - Silver
+      return const Color(0xFFC0C0C0);
     } else if (marketCap >= 2e9) {
-      // Mid Cap - Green
-      return Colors.green;
+      // Mid Cap - Bronze
+      return const Color(0xFFCD7F32);
     } else if (marketCap >= 300e6) {
       // Small Cap - Orange
       return Colors.orange;
@@ -569,6 +598,9 @@ class StockLossAdapter implements StockData {
 
   @override
   String? get country => stock.country;
+
+  @override
+  double? get lastAnnualDividend => stock.lastAnnualDividend;
 }
 
 /// Adapter for FilteredStock model
@@ -603,6 +635,9 @@ class FilteredStockAdapter implements StockData {
 
   @override
   String? get country => stock.country;
+
+  @override
+  double? get lastAnnualDividend => null; // Not available in FilteredStock
 }
 
 /// Adapter for Stock model
@@ -637,6 +672,9 @@ class StockAdapter implements StockData {
 
   @override
   String? get country => stock.country;
+
+  @override
+  double? get lastAnnualDividend => stock.lastAnnualDividend;
 }
 
 /// Adapter for StockSearchResult model
@@ -671,4 +709,7 @@ class StockSearchResultAdapter implements StockData {
 
   @override
   String? get country => stock.country;
+
+  @override
+  double? get lastAnnualDividend => null; // Not available in StockSearchResult
 }
