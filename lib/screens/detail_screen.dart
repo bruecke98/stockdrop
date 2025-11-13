@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../widgets/chart_widget.dart';
 import '../services/api_service.dart';
 import '../models/stock.dart';
+import '../models/market_hours.dart';
 import 'stock_comparison_screen.dart';
 
 /// Data class for ratio chart visualization
@@ -80,6 +82,8 @@ class _DetailScreenState extends State<DetailScreen> {
       true; // Toggle between Senate and House trading
   String? _error;
   String? _stockSymbol;
+  List<MarketHours> _marketHours = [];
+  bool _isLoadingMarketHours = true;
 
   @override
   void initState() {
@@ -91,6 +95,9 @@ class _DetailScreenState extends State<DetailScreen> {
     // Get symbol from widget parameter or route arguments
     _stockSymbol = widget.symbol;
     _isRevenueSegmentationLoading = true;
+
+    // Fetch market hours
+    _fetchMarketHours();
 
     if (_stockSymbol == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -813,9 +820,42 @@ class _DetailScreenState extends State<DetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          profile.exchange!,
-                          style: theme.textTheme.bodyMedium,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: theme.colorScheme.primary,
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isMarketOpen(profile.exchange!)
+                                    ? Icons.wb_sunny
+                                    : Icons.nightlight_round,
+                                size: 12,
+                                color: _isMarketOpen(profile.exchange!)
+                                    ? Colors.lightGreen
+                                    : Colors.grey,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _getExchangeAbbreviation(profile.exchange!),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -9408,16 +9448,28 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   String _getFirstSentence(String text) {
-    // Find the first sentence by looking for the first period followed by a space or end of string
-    final firstPeriodIndex = text.indexOf('.');
-    if (firstPeriodIndex != -1) {
-      // Check if there's more content after the period
-      if (firstPeriodIndex < text.length - 1) {
-        return text.substring(0, firstPeriodIndex + 1);
+    // Split text into words
+    final words = text.split(RegExp(r'\s+'));
+
+    // If there are 10 or fewer words, return the whole text
+    if (words.length <= 10) {
+      return text;
+    }
+
+    // Find the first sentence that contains at least 10 words
+    final sentences = text.split(RegExp(r'(?<=\.)\s+'));
+    String result = '';
+
+    for (final sentence in sentences) {
+      result += (result.isEmpty ? '' : ' ') + sentence;
+      final wordCount = result.split(RegExp(r'\s+')).length;
+      if (wordCount >= 10) {
+        return result.trim();
       }
     }
-    // If no period found or it's at the end, return the whole text
-    return text;
+
+    // If no sentence has 10 words, return the first 10 words
+    return words.take(10).join(' ') + (words.length > 10 ? '...' : '');
   }
 
   bool _hasMoreThanOneSentence(String text) {
@@ -9460,6 +9512,125 @@ class _DetailScreenState extends State<DetailScreen> {
       return Colors.red;
     } else {
       return Colors.grey;
+    }
+  }
+
+  /// Check if the market is currently open
+  bool _isMarketOpen(String exchangeName) {
+    if (_marketHours.isEmpty) return false;
+
+    // Map exchange names to the ones used in market hours API
+    String mappedExchange = exchangeName.toUpperCase();
+    switch (mappedExchange) {
+      case 'NYSE':
+        mappedExchange = 'NYSE';
+        break;
+      case 'NASDAQ':
+        mappedExchange = 'NASDAQ';
+        break;
+      case 'AMEX':
+        mappedExchange = 'AMEX';
+        break;
+      default:
+        // For other exchanges, try to find a match
+        break;
+    }
+
+    final marketHour = _marketHours.firstWhere(
+      (mh) => mh.exchange.toUpperCase() == mappedExchange,
+      orElse: () => MarketHours(
+        exchange: '',
+        name: '',
+        openingHour: '',
+        closingHour: '',
+        timezone: '',
+        isMarketOpen: false,
+      ),
+    );
+
+    return marketHour.isMarketOpen;
+  }
+
+  /// Get abbreviated exchange name
+  String _getExchangeAbbreviation(String exchangeName) {
+    // Handle common exchange names
+    switch (exchangeName.toUpperCase()) {
+      case 'NEW YORK STOCK EXCHANGE':
+        return 'NYSE';
+      case 'NASDAQ STOCK MARKET':
+        return 'NASDAQ';
+      case 'AMERICAN STOCK EXCHANGE':
+        return 'AMEX';
+      case 'TORONTO STOCK EXCHANGE':
+        return 'TSX';
+      case 'LONDON STOCK EXCHANGE':
+        return 'LSE';
+      case 'SHANGHAI STOCK EXCHANGE':
+        return 'SSE';
+      case 'HONG KONG EXCHANGES AND CLEARING':
+        return 'HKEX';
+      case 'TOKYO STOCK EXCHANGE':
+        return 'TSE';
+      default:
+        // For unknown exchanges, take first 3-4 characters or split by space
+        if (exchangeName.length <= 4) {
+          return exchangeName.toUpperCase();
+        }
+        // Try to take meaningful abbreviation
+        final words = exchangeName.split(' ');
+        if (words.length >= 2) {
+          return '${words[0].substring(0, min(2, words[0].length))}${words[1].substring(0, min(2, words[1].length))}'
+              .toUpperCase();
+        }
+        return exchangeName
+            .substring(0, min(4, exchangeName.length))
+            .toUpperCase();
+    }
+  }
+
+  Future<void> _fetchMarketHours() async {
+    setState(() {
+      _isLoadingMarketHours = true;
+    });
+
+    try {
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        throw Exception('FMP API key not found in environment variables');
+      }
+
+      final url =
+          'https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch market hours: ${response.statusCode}');
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      final allMarketHours = data
+          .map((item) => MarketHours.fromJson(item))
+          .toList();
+
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, HKSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'HKSE'];
+      final filteredMarketHours = allMarketHours
+          .where((market) => targetExchanges.contains(market.exchange))
+          .toList();
+
+      setState(() {
+        _marketHours = filteredMarketHours;
+        _isLoadingMarketHours = false;
+      });
+
+      debugPrint(
+        'Successfully loaded market hours for ${filteredMarketHours.length} exchanges',
+      );
+    } catch (e) {
+      debugPrint('Error fetching market hours: $e');
+      setState(() {
+        _isLoadingMarketHours = false;
+      });
     }
   }
 }

@@ -53,6 +53,9 @@ class ChartWidget extends StatefulWidget {
   /// Initial time period for the chart
   final String initialPeriod;
 
+  /// Whether to show the 100-day moving average
+  final bool show100DayMA;
+
   const ChartWidget({
     super.key,
     required this.symbol,
@@ -60,6 +63,7 @@ class ChartWidget extends StatefulWidget {
     this.showVolume = false,
     this.lineColor,
     this.initialPeriod = '1D',
+    this.show100DayMA = false,
   });
 
   @override
@@ -75,6 +79,8 @@ class _ChartWidgetState extends State<ChartWidget> {
   double? _minPrice;
   double? _maxPrice;
   double? _priceAvg50;
+  double? _performance;
+  late bool _show100DayMA;
   late String _selectedPeriod;
 
   /// Available time periods for the chart
@@ -101,6 +107,7 @@ class _ChartWidgetState extends State<ChartWidget> {
   void initState() {
     super.initState();
     _selectedPeriod = widget.initialPeriod;
+    _show100DayMA = widget.show100DayMA;
     _loadChartData();
   }
 
@@ -190,6 +197,15 @@ class _ChartWidgetState extends State<ChartWidget> {
           _chartData = limitedData;
           _isLoading = false;
         });
+
+        // Calculate performance
+        if (limitedData.length >= 2) {
+          final firstPrice = limitedData.first.price;
+          final lastPrice = limitedData.last.price;
+          _performance = ((lastPrice - firstPrice) / firstPrice) * 100;
+        } else {
+          _performance = null;
+        }
 
         debugPrint(
           '✅ Loaded ${limitedData.length} data points for ${widget.symbol}',
@@ -283,6 +299,15 @@ class _ChartWidgetState extends State<ChartWidget> {
     }
   }
 
+  /// Format price for display on y-axis
+  String _formatPrice(double value) {
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}k';
+    } else {
+      return value.toStringAsFixed(0);
+    }
+  }
+
   /// Calculate 50-day moving average from chart data
   List<FlSpot> _calculateMovingAverage50() {
     if (_chartData.isEmpty) return [];
@@ -303,12 +328,35 @@ class _ChartWidgetState extends State<ChartWidget> {
     return movingAverageSpots;
   }
 
+  /// Calculate 100-day moving average from chart data
+  List<FlSpot> _calculateMovingAverage100() {
+    if (_chartData.isEmpty) return [];
+
+    final movingAverageSpots = <FlSpot>[];
+
+    for (int i = 0; i < _chartData.length; i++) {
+      final startIndex = (i - 99).clamp(0, i);
+      final count = i - startIndex + 1;
+      double sum = 0;
+      for (int j = startIndex; j <= i; j++) {
+        sum += _chartData[j].price;
+      }
+      final average = sum / count;
+      movingAverageSpots.add(FlSpot(i.toDouble(), average));
+    }
+
+    return movingAverageSpots;
+  }
+
   /// Build the actual line chart
   Widget _buildChart(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final lineColor = widget.lineColor ?? colorScheme.primary;
+    final bool isPositive = _performance != null && _performance! > 0;
+    final lineColor = isPositive
+        ? Colors.green.shade200
+        : (widget.lineColor ?? colorScheme.primary);
 
     // Convert data points to FlSpot for fl_chart
     final spots = _chartData.asMap().entries.map((entry) {
@@ -317,6 +365,9 @@ class _ChartWidgetState extends State<ChartWidget> {
 
     // Calculate 50-day moving average
     final movingAverageSpots = _calculateMovingAverage50();
+
+    // Calculate 100-day moving average
+    final movingAverage100Spots = _calculateMovingAverage100();
 
     return LineChart(
       LineChartData(
@@ -342,7 +393,7 @@ class _ChartWidgetState extends State<ChartWidget> {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 30,
+              reservedSize: 25,
               interval: (_chartData.length / 4).ceil().toDouble(),
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
@@ -378,10 +429,10 @@ class _ChartWidgetState extends State<ChartWidget> {
             sideTitles: SideTitles(
               showTitles: true,
               interval: (_maxPrice! - _minPrice!) / 4,
-              reservedSize: 50,
+              reservedSize: 40,
               getTitlesWidget: (value, meta) {
                 return Text(
-                  '\$${value.toStringAsFixed(2)}',
+                  '\$${_formatPrice(value)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                     fontSize: 10,
@@ -439,6 +490,17 @@ class _ChartWidgetState extends State<ChartWidget> {
               dotData: const FlDotData(show: false),
               belowBarData: BarAreaData(show: false),
             ),
+          // 100-day moving average line
+          if (_show100DayMA && movingAverage100Spots.isNotEmpty)
+            LineChartBarData(
+              spots: movingAverage100Spots,
+              isCurved: true,
+              color: Colors.blue,
+              barWidth: 1.5,
+              isStrokeCapRound: true,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(show: false),
+            ),
         ],
         lineTouchData: LineTouchData(
           enabled: true,
@@ -450,9 +512,22 @@ class _ChartWidgetState extends State<ChartWidget> {
                 if (index >= 0 && index < _chartData.length) {
                   final data = _chartData[index];
                   final isMovingAverage =
-                      spot.barIndex == 1; // Index 1 is the moving average line
+                      spot.barIndex ==
+                      1; // Index 1 is the 50-day moving average line
+                  final isMovingAverage100 =
+                      spot.barIndex ==
+                      2; // Index 2 is the 100-day moving average line
 
-                  if (isMovingAverage) {
+                  if (isMovingAverage100) {
+                    return LineTooltipItem(
+                      '100MA: \$${spot.y.toStringAsFixed(2)}',
+                      TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    );
+                  } else if (isMovingAverage) {
                     return LineTooltipItem(
                       '50MA: \$${spot.y.toStringAsFixed(2)}',
                       TextStyle(
@@ -508,7 +583,7 @@ class _ChartWidgetState extends State<ChartWidget> {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -518,14 +593,93 @@ class _ChartWidgetState extends State<ChartWidget> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      '${widget.symbol.toUpperCase()} - ${_selectedPeriod} Chart',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
+                    if (_performance != null)
+                      Text(
+                        '${_performance! >= 0 ? '+' : ''}${_performance!.toStringAsFixed(2)}%',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: _performance! >= 0 ? Colors.green : Colors.red,
+                        ),
+                      )
+                    else
+                      Text(
+                        '${widget.symbol.toUpperCase()} - ${_selectedPeriod}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
                       ),
-                    ),
+                    // Toggle 100-day MA button
+                    if (widget.show100DayMA)
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _show100DayMA = !_show100DayMA;
+                          });
+                        },
+                        icon: Icon(
+                          _show100DayMA
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          color: _show100DayMA
+                              ? Colors.blue
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        tooltip: _show100DayMA
+                            ? 'Hide 100-Day MA'
+                            : 'Show 100-Day MA',
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
+                      ),
                     const Spacer(),
+                    // Legend for chart lines
+                    Row(
+                      children: [
+                        // Price line indicator
+                        Container(
+                          width: 12,
+                          height: 2,
+                          color: widget.lineColor ?? theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Price',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // 50-day MA indicator (only show if data is available)
+                        if (_calculateMovingAverage50().isNotEmpty) ...[
+                          Container(width: 12, height: 2, color: Colors.orange),
+                          const SizedBox(width: 4),
+                          Text(
+                            '50-Day MA',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 12),
+                        // 100-day MA indicator (only show if enabled and data is available)
+                        if (_show100DayMA &&
+                            _calculateMovingAverage100().isNotEmpty) ...[
+                          Container(width: 12, height: 2, color: Colors.blue),
+                          const SizedBox(width: 4),
+                          Text(
+                            '100-Day MA',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                     if (_isLoading)
                       SizedBox(
                         width: 16,
@@ -545,39 +699,6 @@ class _ChartWidgetState extends State<ChartWidget> {
                           minHeight: 32,
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                // Legend for chart lines
-                Row(
-                  children: [
-                    // Price line indicator
-                    Container(
-                      width: 12,
-                      height: 2,
-                      color: widget.lineColor ?? theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Price',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // 50-day MA indicator (only show if data is available)
-                    if (_calculateMovingAverage50().isNotEmpty) ...[
-                      Container(width: 12, height: 2, color: Colors.orange),
-                      const SizedBox(width: 4),
-                      Text(
-                        '50-Day MA',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -732,6 +853,7 @@ class CompactChartWidget extends StatelessWidget {
       height: height,
       lineColor: lineColor,
       showVolume: false,
+      show100DayMA: true,
     );
   }
 }
