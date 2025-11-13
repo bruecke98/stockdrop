@@ -93,7 +93,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 },
               ),
               Positioned(
-                top: 8,
+                bottom: 8,
                 right: 8,
                 child: IconButton(
                   icon: const Icon(Icons.delete),
@@ -364,13 +364,15 @@ class FavoriteStock implements StockData {
   @override
   double get changePercentValue => _changePercentValue;
   @override
-  double? get beta => null;
+  double? get beta => _beta;
   @override
   String? get sector => null;
   @override
   double? get marketCap => null;
   @override
-  String? get exchangeShortName => null;
+  String? get exchangeShortName => _exchangeShortName;
+  @override
+  String? get country => _country;
 
   double? get changesPercentage => _changePercentValue;
 
@@ -378,16 +380,25 @@ class FavoriteStock implements StockData {
   final String _name;
   final double _price;
   final double _changePercentValue;
+  final double? _beta;
+  final String? _exchangeShortName;
+  final String? _country;
 
   FavoriteStock({
     required String symbol,
     required String name,
     required double? price,
     double? changesPercentage,
+    String? exchangeShortName,
+    double? beta,
+    String? country,
   }) : _symbol = symbol,
        _name = name,
        _price = price ?? 0.0,
-       _changePercentValue = changesPercentage ?? 0.0;
+       _changePercentValue = changesPercentage ?? 0.0,
+       _beta = beta,
+       _exchangeShortName = exchangeShortName,
+       _country = country;
 
   factory FavoriteStock.fromJson(Map<String, dynamic> json) {
     return FavoriteStock(
@@ -395,6 +406,9 @@ class FavoriteStock implements StockData {
       name: json['name']?.toString() ?? '',
       price: (json['price'] as num?)?.toDouble(),
       changesPercentage: (json['changesPercentage'] as num?)?.toDouble(),
+      exchangeShortName: json['exchangeShortName']?.toString(),
+      beta: (json['beta'] as num?)?.toDouble(),
+      country: json['country']?.toString(),
     );
   }
 }

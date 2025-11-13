@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import '../models/stock.dart';
+import '../models/market_hours.dart';
 
 // Import the screen files to access StockLoss and FilteredStock classes
 import '../screens/home_screen.dart' show StockLoss;
 import '../screens/filter_screen.dart' show FilteredStock;
+import '../screens/search_screen.dart' show StockSearchResult;
 
 /// Abstract interface for stock data that can be displayed in enhanced stock cards
 abstract class StockData {
   String get symbol;
   String get name;
   double get price;
-  double get changePercentValue; // Unified field for percentage change
+  double? get changePercentValue; // Unified field for percentage change
   double? get beta;
   String? get sector;
   double? get marketCap;
   String? get exchangeShortName;
+  String? get country;
 }
 
 /// Enhanced stock card widget that supports multiple stock model types
@@ -36,7 +39,15 @@ class EnhancedStockCard extends StatelessWidget {
   /// Callback when the card is tapped
   final VoidCallback? onTap;
 
-  const EnhancedStockCard({super.key, required this.stock, this.onTap});
+  /// Market hours data to determine if exchange is open
+  final List<MarketHours>? marketHours;
+
+  const EnhancedStockCard({
+    super.key,
+    required this.stock,
+    this.onTap,
+    this.marketHours,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,13 +55,16 @@ class EnhancedStockCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
 
     // Determine color for percentage change
-    final changeColor = stock.changePercentValue >= 0
+    final changeColor = stock.changePercentValue == null
+        ? colorScheme.onSurfaceVariant
+        : stock.changePercentValue! >= 0
         ? colorScheme.primary
         : colorScheme.error;
 
     // Format percentage with + or - sign
-    final percentageText =
-        '${stock.changePercentValue >= 0 ? '+' : ''}${stock.changePercentValue.toStringAsFixed(1)}%';
+    final percentageText = stock.changePercentValue == null
+        ? 'N/A'
+        : '${stock.changePercentValue! >= 0 ? '+' : ''}${stock.changePercentValue!.toStringAsFixed(1)}%';
 
     // Format price
     final priceText = '\$${stock.price.toStringAsFixed(2)}';
@@ -157,35 +171,43 @@ class EnhancedStockCard extends StatelessWidget {
                                 // Beta and sector row
                                 Row(
                                   children: [
-                                    // Beta display
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.red.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: Colors.red,
-                                          width: 1,
+                                    // Beta display (only if beta is available)
+                                    if (stock.beta != null) ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _getBetaColor(
+                                            stock.beta!,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: _getBetaColor(stock.beta!),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'β${stock.beta!.toStringAsFixed(2)}',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: _getBetaColor(
+                                                  stock.beta!,
+                                                ),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
                                         ),
                                       ),
-                                      child: Text(
-                                        'β1.23',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color: Colors.red,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 10,
-                                            ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
+                                      const SizedBox(width: 6),
+                                    ],
                                     // Sector display
                                     Expanded(
                                       child: Text(
-                                        'Technology',
+                                        stock.sector ?? 'N/A',
                                         style: theme.textTheme.bodySmall
                                             ?.copyWith(
                                               color:
@@ -197,37 +219,60 @@ class EnhancedStockCard extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                // Market cap below
+                                // Market cap and country row
                                 if (stock.marketCap != null) ...[
                                   const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getMarketCapColor(
-                                        stock.marketCap!,
-                                      ).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: _getMarketCapColor(
-                                          stock.marketCap!,
+                                  Row(
+                                    children: [
+                                      // Market cap badge
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
                                         ),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      '${_getMarketCapCategory(stock.marketCap!)} (${_getFormattedMarketCap(stock.marketCap)})',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
+                                        decoration: BoxDecoration(
+                                          color: _getMarketCapColor(
+                                            stock.marketCap!,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
                                             color: _getMarketCapColor(
                                               stock.marketCap!,
                                             ),
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 10,
+                                            width: 1,
                                           ),
-                                    ),
+                                        ),
+                                        child: Text(
+                                          '${_getMarketCapCategory(stock.marketCap!)} (${_getFormattedMarketCap(stock.marketCap)})',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: _getMarketCapColor(
+                                                  stock.marketCap!,
+                                                ),
+                                                fontWeight: FontWeight.w500,
+                                                fontSize: 10,
+                                              ),
+                                        ),
+                                      ),
+                                      // Country display (like sector)
+                                      if (stock.country != null) ...[
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            stock.country!,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
                                 ],
                               ],
@@ -260,15 +305,35 @@ class EnhancedStockCard extends StatelessWidget {
                                   width: 1,
                                 ),
                               ),
-                              child: Text(
-                                _getExchangeAbbreviation(
-                                  stock.exchangeShortName ?? 'NYSE',
-                                ),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.primary,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 10,
-                                ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isMarketOpen(
+                                          stock.exchangeShortName ?? 'NYSE',
+                                        )
+                                        ? Icons.wb_sunny
+                                        : Icons.nightlight_round,
+                                    size: 12,
+                                    color:
+                                        _isMarketOpen(
+                                          stock.exchangeShortName ?? 'NYSE',
+                                        )
+                                        ? Colors.lightGreen
+                                        : Colors.grey,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _getExchangeAbbreviation(
+                                      stock.exchangeShortName ?? 'NYSE',
+                                    ),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             Text(
@@ -389,7 +454,7 @@ class EnhancedStockCard extends StatelessWidget {
     // Handle common exchange names
     switch (exchangeName.toUpperCase()) {
       case 'NASDAQ':
-        return 'NAS';
+        return 'NASDAQ';
       case 'NEW YORK STOCK EXCHANGE':
       case 'NYSE':
         return 'NYSE';
@@ -432,6 +497,42 @@ class EnhancedStockCard extends StatelessWidget {
         return exchangeName.substring(0, 4).toUpperCase();
     }
   }
+
+  /// Check if the market is currently open
+  bool _isMarketOpen(String exchangeName) {
+    if (marketHours == null) return false;
+
+    // Map exchange names to the ones used in market hours API
+    String mappedExchange = exchangeName.toUpperCase();
+    switch (mappedExchange) {
+      case 'NYSE':
+        mappedExchange = 'NYSE';
+        break;
+      case 'NASDAQ':
+        mappedExchange = 'NASDAQ';
+        break;
+      case 'AMEX':
+        mappedExchange = 'AMEX';
+        break;
+      default:
+        // For other exchanges, try to find a match
+        break;
+    }
+
+    final marketHour = marketHours!.firstWhere(
+      (mh) => mh.exchange.toUpperCase() == mappedExchange,
+      orElse: () => MarketHours(
+        exchange: '',
+        name: '',
+        openingHour: '',
+        closingHour: '',
+        timezone: '',
+        isMarketOpen: false,
+      ),
+    );
+
+    return marketHour.isMarketOpen;
+  }
 }
 
 /// Adapter classes to make existing models implement StockData interface
@@ -452,7 +553,7 @@ class StockLossAdapter implements StockData {
   double get price => stock.price;
 
   @override
-  double get changePercentValue => stock.changesPercentage;
+  double? get changePercentValue => stock.changesPercentage;
 
   @override
   double? get beta => stock.beta;
@@ -465,6 +566,9 @@ class StockLossAdapter implements StockData {
 
   @override
   String? get exchangeShortName => stock.exchange;
+
+  @override
+  String? get country => stock.country;
 }
 
 /// Adapter for FilteredStock model
@@ -483,7 +587,7 @@ class FilteredStockAdapter implements StockData {
   double get price => stock.price;
 
   @override
-  double get changePercentValue => stock.changesPercentage;
+  double? get changePercentValue => stock.changesPercentage;
 
   @override
   double? get beta => stock.beta;
@@ -496,6 +600,9 @@ class FilteredStockAdapter implements StockData {
 
   @override
   String? get exchangeShortName => stock.exchange;
+
+  @override
+  String? get country => stock.country;
 }
 
 /// Adapter for Stock model
@@ -514,7 +621,7 @@ class StockAdapter implements StockData {
   double get price => stock.price;
 
   @override
-  double get changePercentValue => stock.changePercent;
+  double? get changePercentValue => stock.changePercent;
 
   @override
   double? get beta => stock.beta;
@@ -527,4 +634,41 @@ class StockAdapter implements StockData {
 
   @override
   String? get exchangeShortName => stock.exchange;
+
+  @override
+  String? get country => stock.country;
+}
+
+/// Adapter for StockSearchResult model
+class StockSearchResultAdapter implements StockData {
+  final StockSearchResult stock;
+
+  StockSearchResultAdapter(this.stock);
+
+  @override
+  String get symbol => stock.symbol;
+
+  @override
+  String get name => stock.name;
+
+  @override
+  double get price => stock.price ?? 0.0;
+
+  @override
+  double? get changePercentValue => stock.changePercent;
+
+  @override
+  double? get beta => stock.beta;
+
+  @override
+  String? get sector => stock.sector;
+
+  @override
+  double? get marketCap => stock.marketCap;
+
+  @override
+  String? get exchangeShortName => stock.exchangeShortName;
+
+  @override
+  String? get country => stock.country;
 }

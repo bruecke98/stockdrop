@@ -8,6 +8,7 @@ import '../screens/commodity_screen.dart';
 import '../screens/index_screen.dart';
 import '../models/commodity.dart';
 import '../models/commodity.dart' show Index;
+import '../models/market_hours.dart';
 import '../services/api_service.dart';
 
 /// Home screen for StockDrop app
@@ -36,11 +37,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Index? _vixIndex;
   bool _isLoadingIndexes = true;
 
+  // Market hours data
+  List<MarketHours> _marketHours = [];
+  bool _isLoadingMarketHours = true;
+
   @override
   void initState() {
     super.initState();
     _fetchStocks();
     _fetchIndexData();
+    _fetchMarketHours();
   }
 
   @override
@@ -129,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     final stock = _stocks[index];
                     return EnhancedStockCard(
                       stock: StockLossAdapter(stock),
+                      marketHours: _marketHours,
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -145,8 +152,153 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // Indexes Section
               SliverToBoxAdapter(child: _buildIndexesSection(theme)),
+
+              // Market Hours Section
+              SliverToBoxAdapter(child: _buildMarketHoursSection(theme)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Build the market hours section
+  Widget _buildMarketHoursSection(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Market Hours Heading
+        Container(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Row(
+            children: [
+              Icon(Icons.schedule, color: theme.colorScheme.primary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Market Hours',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Market Hours Cards
+        if (_isLoadingMarketHours)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            height: 100,
+            child: const Center(child: CircularProgressIndicator()),
+          )
+        else if (_marketHours.isEmpty)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            height: 100,
+            child: Center(
+              child: Text(
+                'No market hours data available',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          )
+        else
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            child: Column(
+              children: _marketHours
+                  .map(
+                    (market) => Container(
+                      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: _buildMarketHoursCard(theme, market),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMarketHoursCard(ThemeData theme, MarketHours market) {
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: market.isMarketOpen
+                ? Colors.green.shade700
+                : Colors.grey.shade400,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Market status indicator
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: market.isMarketOpen ? Colors.green : Colors.grey,
+              ),
+            ),
+            const SizedBox(width: 12),
+
+            // Market info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    market.name,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${market.openingHour} - ${market.closingHour}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    market.timezone,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Exchange code
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                market.exchange,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1102,25 +1254,49 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  String _getMarketCapCategory(double marketCap) {
-    if (marketCap >= 200e9) {
-      // $200B+
-      return 'Mega Cap';
-    } else if (marketCap >= 10e9) {
-      // $10B-$200B
-      return 'Large Cap';
-    } else if (marketCap >= 2e9) {
-      // $2B-$10B
-      return 'Mid Cap';
-    } else if (marketCap >= 300e6) {
-      // $300M-$2B
-      return 'Small Cap';
-    } else if (marketCap >= 50e6) {
-      // $50M-$300M
-      return 'Micro Cap';
-    } else {
-      // <$50M
-      return 'Nano Cap';
+  Future<void> _fetchMarketHours() async {
+    setState(() {
+      _isLoadingMarketHours = true;
+    });
+
+    try {
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        throw Exception('FMP API key not found in environment variables');
+      }
+
+      final url =
+          'https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch market hours: ${response.statusCode}');
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      final allMarketHours = data
+          .map((item) => MarketHours.fromJson(item))
+          .toList();
+
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, HKSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'HKSE'];
+      final filteredMarketHours = allMarketHours
+          .where((market) => targetExchanges.contains(market.exchange))
+          .toList();
+
+      setState(() {
+        _marketHours = filteredMarketHours;
+        _isLoadingMarketHours = false;
+      });
+
+      print(
+        'DEBUG: Successfully loaded market hours for ${filteredMarketHours.length} exchanges',
+      );
+    } catch (e) {
+      print('DEBUG: Error fetching market hours: $e');
+      setState(() {
+        _isLoadingMarketHours = false;
+      });
     }
   }
 }
@@ -1136,6 +1312,7 @@ class StockLoss {
   final String? sector;
   final double? marketCap;
   final String? exchange;
+  final String? country;
 
   StockLoss({
     required this.symbol,
@@ -1147,6 +1324,7 @@ class StockLoss {
     this.sector,
     this.marketCap,
     this.exchange,
+    this.country,
   });
 
   factory StockLoss.fromJson(Map<String, dynamic> json) {
@@ -1160,6 +1338,7 @@ class StockLoss {
       sector: json['sector']?.toString(),
       marketCap: (json['marketCap'] as num?)?.toDouble(),
       exchange: json['exchange']?.toString(),
+      country: json['country']?.toString(),
     );
   }
 }

@@ -11,49 +11,26 @@ void main() async {
     return;
   }
 
-  print('Testing sector P/E API endpoint...');
+  print('Testing stock-screener API endpoint...');
 
-  // Test without date
-  final url1 = Uri.parse(
-    'https://financialmodelingprep.com/api/v3/sector-pe-snapshot?apikey=$apiKey',
+  // Test stock-screener endpoint
+  final url = Uri.parse(
+    'https://financialmodelingprep.com/api/v3/stock-screener?sector=Technology&limit=2&apikey=$apiKey',
   );
-  print('URL without date: $url1');
+  print('URL: $url');
 
   try {
-    final response1 = await http.get(url1);
-    print('Status: ${response1.statusCode}');
-    print('Response length: ${response1.body.length}');
-    if (response1.body.length < 500) {
-      print('Response: ${response1.body}');
-    } else {
-      print('Response preview: ${response1.body.substring(0, 200)}...');
-    }
-
-    if (response1.statusCode == 200) {
-      final data = json.decode(response1.body);
+    final response = await http.get(url);
+    print('Status: ${response.statusCode}');
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
       print('Data type: ${data.runtimeType}');
       if (data is List && data.isNotEmpty) {
+        print('First item keys: ${data[0].keys.toList()}');
         print('First item: ${data[0]}');
       }
-    }
-  } catch (e) {
-    print('Error: $e');
-  }
-
-  // Test with date
-  final url2 = Uri.parse(
-    'https://financialmodelingprep.com/api/v3/sector-pe-snapshot?date=2025-11-03&apikey=$apiKey',
-  );
-  print('\nURL with date: $url2');
-
-  try {
-    final response2 = await http.get(url2);
-    print('Status: ${response2.statusCode}');
-    print('Response length: ${response2.body.length}');
-    if (response2.body.length < 500) {
-      print('Response: ${response2.body}');
     } else {
-      print('Response preview: ${response2.body.substring(0, 200)}...');
+      print('Response: ${response.body}');
     }
   } catch (e) {
     print('Error: $e');

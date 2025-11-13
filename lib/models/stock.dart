@@ -24,6 +24,7 @@ class Stock {
   final double? previousClose;
   final DateTime? lastUpdated;
   final int? timestamp;
+  final String? country;
 
   Stock({
     required this.symbol,
@@ -47,6 +48,7 @@ class Stock {
     this.previousClose,
     this.lastUpdated,
     this.timestamp,
+    this.country,
   });
 
   /// Create Stock from JSON (typically from API response)
@@ -82,6 +84,7 @@ class Stock {
                     (_parseInt(json['timestamp']) ?? 0) * 1000,
                   )
                 : null),
+      country: json['country']?.toString(),
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/enhanced_stock_card.dart';
 
 /// Search screen for StockDrop app
 /// Allows users to search for stocks and add them to favorites
@@ -117,78 +118,32 @@ class _SearchScreenState extends State<SearchScreen> {
         final stock = _searchResults[index];
         final isFavorite = _favoriteSymbols.contains(stock.symbol);
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-              child: Text(
-                stock.symbol.length >= 2
-                    ? stock.symbol.substring(0, 2).toUpperCase()
-                    : stock.symbol.toUpperCase(),
-                style: TextStyle(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+        return Stack(
+          children: [
+            EnhancedStockCard(
+              stock: StockSearchResultAdapter(stock),
+              onTap: () {
+                Navigator.pushNamed(
+                  context,
+                  '/detail',
+                  arguments: {'symbol': stock.symbol},
+                );
+              },
+            ),
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: IconButton(
+                icon: Icon(
+                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: isFavorite
+                      ? Colors.red
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
+                onPressed: () => _toggleFavorite(stock.symbol, isFavorite),
               ),
             ),
-            title: Text(
-              stock.symbol,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            subtitle: Text(
-              stock.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (stock.price != null) ...[
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '\$${stock.price!.toStringAsFixed(2)}',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (stock.exchangeShortName != null)
-                        Text(
-                          stock.exchangeShortName!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                IconButton(
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: isFavorite
-                        ? Colors.red
-                        : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  onPressed: () => _toggleFavorite(stock.symbol, isFavorite),
-                ),
-              ],
-            ),
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                '/detail',
-                arguments: {'symbol': stock.symbol},
-              );
-            },
-          ),
+          ],
         );
       },
     );
@@ -335,32 +290,100 @@ class _SearchScreenState extends State<SearchScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
 
-        // Get detailed quotes for the search results to include price
-        final symbols = data.map((item) => item['symbol']).take(10).join(',');
+        // Filter to only include stocks (not ETFs or funds)
+        final stockData = data
+            .where((item) {
+              final type = item['type']?.toString().toLowerCase() ?? '';
+              return type == 'stock' || type == 'common stock' || type.isEmpty;
+            })
+            .take(10)
+            .toList();
 
-        if (symbols.isNotEmpty) {
+        debugPrint(
+          '🔍 Filtered ${stockData.length} stocks from ${data.length} search results',
+        );
+
+        if (stockData.isNotEmpty) {
+          // Get symbols from filtered stock results
+          final symbols = stockData.map((item) => item['symbol']).toList();
+
+          // Get detailed quotes for price and change data (supports comma-separated)
           final quotesUrl =
-              'https://financialmodelingprep.com/api/v3/quote/$symbols?apikey=$apiKey';
+              'https://financialmodelingprep.com/api/v3/quote/${symbols.join(',')}?apikey=$apiKey';
           final quotesResponse = await http.get(Uri.parse(quotesUrl));
 
-          Map<String, double> priceMap = {};
+          // Get profile data individually for each stock (stable/profile uses query params)
+          final profileFutures = symbols.map((symbol) async {
+            final profileUrl =
+                'https://financialmodelingprep.com/stable/profile?symbol=$symbol&apikey=$apiKey';
+            final response = await http.get(Uri.parse(profileUrl));
+            if (response.statusCode == 200) {
+              final data = json.decode(response.body);
+              return data.isNotEmpty
+                  ? data[0]
+                  : null; // Profile API returns array
+            }
+            return null;
+          });
+
+          final profileResults = await Future.wait(profileFutures);
+
+          debugPrint('🔍 Search API calls:');
+          debugPrint('  Search results: ${data.length} items');
+          debugPrint('  Filtered stocks: ${stockData.length} items');
+          debugPrint('  Quotes status: ${quotesResponse.statusCode}');
+
           if (quotesResponse.statusCode == 200) {
             final List<dynamic> quotesData = json.decode(quotesResponse.body);
-            for (var quote in quotesData) {
-              priceMap[quote['symbol']] =
-                  (quote['price'] as num?)?.toDouble() ?? 0.0;
-            }
+
+            debugPrint('  Quotes data: ${quotesData.length} items');
+            debugPrint('  Profile calls completed: ${profileResults.length}');
+
+            // Create maps for easy lookup
+            final quotesMap = {
+              for (var quote in quotesData) quote['symbol']: quote,
+            };
+            final profilesMap = {
+              for (int i = 0; i < symbols.length; i++)
+                symbols[i]: profileResults[i],
+            };
+
+            // Combine search, quote, and profile data
+            final searchResults = stockData.map((searchItem) {
+              final symbol = searchItem['symbol'];
+              final quote = quotesMap[symbol];
+              final profile = profilesMap[symbol];
+
+              debugPrint('  Processing $symbol:');
+              debugPrint('    Quote: ${quote != null}');
+              debugPrint('    Profile: ${profile != null}');
+              if (profile != null) {
+                debugPrint('    Beta: ${profile['beta']}');
+                debugPrint('    Sector: ${profile['sector']}');
+                debugPrint(
+                  '    Market Cap: ${profile['mktCap'] ?? profile['marketCap']}',
+                );
+                debugPrint('    Country: ${profile['country']}');
+              }
+
+              return StockSearchResult.fromJson(searchItem, quote, profile);
+            }).toList();
+
+            setState(() {
+              _searchResults = searchResults;
+              _isLoading = false;
+            });
+          } else {
+            // Fallback to search data only if quotes fail
+            final searchResults = stockData.map((item) {
+              return StockSearchResult.fromJson(item, null, null);
+            }).toList();
+
+            setState(() {
+              _searchResults = searchResults;
+              _isLoading = false;
+            });
           }
-
-          final searchResults = data.map((item) {
-            final symbol = item['symbol'] as String;
-            return StockSearchResult.fromJson(item, priceMap[symbol]);
-          }).toList();
-
-          setState(() {
-            _searchResults = searchResults;
-            _isLoading = false;
-          });
         } else {
           setState(() {
             _searchResults = [];
@@ -461,23 +484,66 @@ class StockSearchResult {
   final String name;
   final String? exchangeShortName;
   final double? price;
+  final double? changePercent;
+  final double? beta;
+  final String? sector;
+  final double? marketCap;
+  final String? country;
 
   StockSearchResult({
     required this.symbol,
     required this.name,
     this.exchangeShortName,
     this.price,
+    this.changePercent,
+    this.beta,
+    this.sector,
+    this.marketCap,
+    this.country,
   });
 
   factory StockSearchResult.fromJson(
-    Map<String, dynamic> json, [
-    double? price,
+    Map<String, dynamic> searchJson, [
+    Map<String, dynamic>? quoteJson,
+    Map<String, dynamic>? profileJson,
   ]) {
+    // Use quote data for price/change if available, otherwise search data
+    final price = quoteJson != null
+        ? (quoteJson['price'] as num?)?.toDouble()
+        : (searchJson['price'] as num?)?.toDouble();
+
+    final changePercent = quoteJson != null
+        ? (quoteJson['changesPercentage'] as num?)?.toDouble()
+        : (searchJson['changesPercentage'] as num?)?.toDouble();
+
+    // Use profile data for beta/sector/country/marketCap if available
+    final beta = profileJson != null
+        ? (profileJson['beta'] as num?)?.toDouble()
+        : null;
+
+    final sector = profileJson != null
+        ? profileJson['sector'] as String?
+        : null;
+
+    final marketCap = profileJson != null
+        ? (profileJson['mktCap'] as num?)?.toDouble() ??
+              (profileJson['marketCap'] as num?)?.toDouble()
+        : null;
+
+    final country = profileJson != null
+        ? profileJson['country'] as String?
+        : null;
+
     return StockSearchResult(
-      symbol: json['symbol']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
-      exchangeShortName: json['exchangeShortName']?.toString(),
+      symbol: searchJson['symbol']?.toString() ?? '',
+      name: searchJson['name']?.toString() ?? '',
+      exchangeShortName: searchJson['exchangeShortName']?.toString(),
       price: price,
+      changePercent: changePercent,
+      beta: beta,
+      sector: sector,
+      marketCap: marketCap,
+      country: country,
     );
   }
 }
