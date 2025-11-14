@@ -171,60 +171,8 @@ class EnhancedStockCard extends StatelessWidget {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // Beta and sector row
-                                Row(
-                                  children: [
-                                    // Beta display (only if beta is available)
-                                    if (stock.beta != null) ...[
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _getBetaColor(
-                                            stock.beta!,
-                                          ).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: _getBetaColor(stock.beta!),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          'β${stock.beta!.toStringAsFixed(2)}',
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color: _getBetaColor(
-                                                  stock.beta!,
-                                                ),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 10,
-                                              ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                    ],
-                                    // Sector display
-                                    Expanded(
-                                      child: Text(
-                                        stock.sector ?? 'N/A',
-                                        style: theme.textTheme.bodySmall
-                                            ?.copyWith(
-                                              color:
-                                                  colorScheme.onSurfaceVariant,
-                                            ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                // Market cap and country row
+                                // Market cap and country row (moved up)
                                 if (stock.marketCap != null) ...[
-                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
                                       // Market cap badge
@@ -277,42 +225,103 @@ class EnhancedStockCard extends StatelessWidget {
                                       ],
                                     ],
                                   ),
-                                ],
-                                // Dividends badge below market cap
-                                if (stock.lastAnnualDividend != null &&
-                                    stock.lastAnnualDividend! > 0) ...[
                                   const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.surfaceContainerHighest
-                                          .withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: colorScheme.outline,
-                                        width: 1,
+                                ],
+                                // Beta and sector row (moved down)
+                                Row(
+                                  children: [
+                                    // Beta display (only if beta is available)
+                                    if (stock.beta != null) ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _getBetaColor(
+                                            stock.beta!,
+                                          ).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: _getBetaColor(stock.beta!),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'β${stock.beta!.toStringAsFixed(2)}',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: _getBetaColor(
+                                                  stock.beta!,
+                                                ),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    // Sector display
+                                    Expanded(
+                                      child: Text(
+                                        stock.sector ?? 'N/A',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    child: Text(
-                                      'Dividends',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
-                                            fontWeight: FontWeight.w500,
-                                            fontSize: 10,
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                // 52-Week Range and Dividends row
+                                Row(
+                                  children: [
+                                    // 52-Week Range badge
+                                    if (stock.yearHigh != null &&
+                                        stock.yearLow != null) ...[
+                                      _buildWeekRangeBadge(theme, colorScheme),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    // Dividends badge
+                                    if (stock.lastAnnualDividend != null &&
+                                        stock.lastAnnualDividend! > 0) ...[
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: colorScheme
+                                              .surfaceContainerHighest
+                                              .withOpacity(0.5),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
                                           ),
-                                    ),
-                                  ),
-                                ],
-                                // 52-Week Range badge
-                                if (stock.yearHigh != null &&
-                                    stock.yearLow != null) ...[
-                                  const SizedBox(height: 4),
-                                  _buildWeekRangeBadge(theme, colorScheme),
-                                ],
+                                          border: Border.all(
+                                            color: colorScheme.outline,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Dividends',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.w500,
+                                                fontSize: 10,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ],
                             ),
                           ],
@@ -415,14 +424,18 @@ class EnhancedStockCard extends StatelessWidget {
 
   /// Get color for beta value
   Color _getBetaColor(double beta) {
-    if (beta > 3.0) {
-      return Colors.red;
+    if (beta >= 3.0) {
+      return Colors.red; // Very aggressive
+    } else if (beta >= 2.0) {
+      return Colors.orange.shade600; // Aggressive
+    } else if (beta >= 1.25) {
+      return Colors.yellow.shade700; // Moderately aggressive
     } else if (beta > 1.0) {
-      return Colors.yellow.shade700;
-    } else if (beta == 1.0) {
-      return Colors.green;
+      return Colors.teal; // Market neutral
+    } else if (beta >= 0.75) {
+      return Colors.blue.shade300; // Moderately defensive
     } else {
-      return Colors.blue;
+      return Colors.blue.shade400; // Very defensive
     }
   }
 
@@ -467,14 +480,14 @@ class EnhancedStockCard extends StatelessWidget {
   /// Get color for market cap category
   Color _getMarketCapColor(double marketCap) {
     if (marketCap >= 200e9) {
-      // Mega Cap - Gold color
-      return const Color(0xFFFFD700);
+      // Mega Cap - Cornflower Blue
+      return const Color(0xFF6495ED);
     } else if (marketCap >= 10e9) {
-      // Large Cap - Silver
-      return const Color(0xFFC0C0C0);
+      // Large Cap - Light Sea Green
+      return const Color(0xFF20B2AA);
     } else if (marketCap >= 2e9) {
-      // Mid Cap - Bronze
-      return const Color(0xFFCD7F32);
+      // Mid Cap - Copper
+      return const Color(0xFFB87333);
     } else if (marketCap >= 300e6) {
       // Small Cap - Orange
       return Colors.orange;
@@ -585,38 +598,42 @@ class EnhancedStockCard extends StatelessWidget {
 
     // Determine color based on position
     Color indicatorColor;
+    Color textColor;
     if (position < 0.33) {
-      indicatorColor = Colors.red;
+      indicatorColor = Colors.deepOrange;
+      textColor = Colors.deepOrange.shade800; // Darker orange-red for text
     } else if (position < 0.67) {
-      indicatorColor = Colors.orange;
+      indicatorColor = Colors.amber;
+      textColor = Colors.amber.shade800; // Darker yellow for text
     } else {
-      indicatorColor = Colors.green;
+      indicatorColor = Colors.teal;
+      textColor = Colors.teal.shade800; // Darker blue-green for text
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: indicatorColor, width: 1),
+        border: Border.all(color: textColor, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Mini progress bar
           Container(
-            width: 20,
+            width: 48,
             height: 4,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(2),
               gradient: const LinearGradient(
-                colors: [Colors.red, Colors.orange, Colors.green],
+                colors: [Colors.deepOrange, Colors.amber, Colors.teal],
                 stops: [0.0, 0.5, 1.0],
               ),
             ),
             child: Stack(
               children: [
                 Positioned(
-                  left: (position * 16) - 1, // Adjust for dot size
+                  left: (position * 44) - 1, // Adjust for dot size
                   top: -1,
                   child: Container(
                     width: 6,
@@ -635,7 +652,7 @@ class EnhancedStockCard extends StatelessWidget {
           Text(
             '52W',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: indicatorColor,
+              color: textColor,
               fontWeight: FontWeight.bold,
               fontSize: 10,
             ),
