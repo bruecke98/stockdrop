@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import '../widgets/commodity_card.dart';
 import '../widgets/enhanced_stock_card.dart';
 import '../screens/commodity_screen.dart';
@@ -30,7 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingMore = false;
   int _currentStockCount = 10;
   bool _hasMoreStocks = true;
-  List<StockLoss> _allAvailableStocks = []; // Store all available stocks for pagination
+  List<StockLoss> _allAvailableStocks =
+      []; // Store all available stocks for pagination
 
   // Index data for home screen cards
   Index? _sp500Index;
@@ -237,58 +237,95 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Calculate time until market opens or closes
   String _getMarketTimeStatus(MarketHours market) {
+    // Check if it's a weekend in the market's timezone
+    final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
+    final weekday = nowInMarketTimezone.weekday; // 1 = Monday, 7 = Sunday
+
+    // Check if it's Friday after market close or weekend
+    if (weekday == 5) {
+      // Friday
+      // Check if current time is after closing time
+      final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
+      final closingTime = _parseTimeString(market.closingHour);
+      if (_isTimeAfter(currentTime, closingTime)) {
+        return 'Closed (Weekend)';
+      }
+    } else if (weekday == 6 || weekday == 7) {
+      // Saturday or Sunday
+      return 'Closed (Weekend)';
+    }
+
+    // Always prioritize API's isMarketOpen field - it knows about holidays too
+    if (!market.isMarketOpen) {
+      // Could be holiday - API handles this
+      // Show when it opens next using the opening hour
+      try {
+        final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
+        final openingTime = _parseTimeString(market.openingHour);
+
+        final minutesUntilOpen = _calculateMinutesDifference(
+          currentTime,
+          openingTime,
+        );
+        if (minutesUntilOpen <= 60) {
+          return 'opens in ${minutesUntilOpen}m';
+        } else {
+          final hoursUntilOpen = (minutesUntilOpen / 60).round();
+          return 'opens in ${hoursUntilOpen}h';
+        }
+      } catch (e) {
+        // If we can't parse the opening time, just show closed
+        return 'Closed';
+      }
+    }
+
     try {
       // Get current time in the market's time zone
       final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
       final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
 
-      // Parse opening and closing times
-      final openingParts = market.openingHour.split(':');
-      final closingParts = market.closingHour.split(':');
+      // Parse opening and closing times using the new parser
+      final openingTime = _parseTimeString(market.openingHour);
+      final closingTime = _parseTimeString(market.closingHour);
 
-      if (openingParts.length >= 2 && closingParts.length >= 2) {
-        final openingHour = int.tryParse(openingParts[0]) ?? 9;
-        final openingMinute = int.tryParse(openingParts[1]) ?? 30;
-        final closingHour = int.tryParse(closingParts[0]) ?? 16;
-        final closingMinute = int.tryParse(closingParts[1]) ?? 0;
+      // Determine if market is currently open based on market's local time
+      final isOpen = _isMarketOpenInTimezone(
+        currentTime,
+        openingTime,
+        closingTime,
+      );
 
-        final openingTime = TimeOfDay(hour: openingHour, minute: openingMinute);
-        final closingTime = TimeOfDay(hour: closingHour, minute: closingMinute);
+      print(
+        'Market: ${market.name}, Timezone: ${market.timezone}, Current time: $currentTime, Opening: $openingTime, Closing: $closingTime, IsOpen: $isOpen',
+      );
 
-        // Determine if market is currently open based on market's local time
-        final isOpen = _isMarketOpenInTimezone(
+      if (isOpen) {
+        // Market is open, show time until closing
+        final minutesUntilClose = _calculateMinutesDifference(
           currentTime,
-          openingTime,
           closingTime,
         );
-
-        if (isOpen) {
-          // Market is open, show time until closing
-          final minutesUntilClose = _calculateMinutesDifference(
-            currentTime,
-            closingTime,
-          );
-          if (minutesUntilClose <= 60) {
-            return 'closes in ${minutesUntilClose}m';
-          } else {
-            final hoursUntilClose = (minutesUntilClose / 60).round();
-            return 'closes in ${hoursUntilClose}h';
-          }
+        if (minutesUntilClose <= 60) {
+          return 'closes in ${minutesUntilClose}m';
         } else {
-          // Market is closed, show time until opening
-          final minutesUntilOpen = _calculateMinutesDifference(
-            currentTime,
-            openingTime,
-          );
-          if (minutesUntilOpen <= 60) {
-            return 'opens in ${minutesUntilOpen}m';
-          } else {
-            final hoursUntilOpen = (minutesUntilOpen / 60).round();
-            return 'opens in ${hoursUntilOpen}h';
-          }
+          final hoursUntilClose = (minutesUntilClose / 60).round();
+          return 'closes in ${hoursUntilClose}h';
+        }
+      } else {
+        // Market is closed, show time until opening
+        final minutesUntilOpen = _calculateMinutesDifference(
+          currentTime,
+          openingTime,
+        );
+        if (minutesUntilOpen <= 60) {
+          return 'opens in ${minutesUntilOpen}m';
+        } else {
+          final hoursUntilOpen = (minutesUntilOpen / 60).round();
+          return 'opens in ${hoursUntilOpen}h';
         }
       }
     } catch (e) {
+      print('Error calculating market time status: $e');
       // Fallback if parsing fails
     }
 
@@ -309,172 +346,129 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Check if time1 is after time2
+  bool _isTimeAfter(TimeOfDay time1, TimeOfDay time2) {
+    final minutes1 = time1.hour * 60 + time1.minute;
+    final minutes2 = time2.hour * 60 + time2.minute;
+    return minutes1 > minutes2;
+  }
+
   /// Get current time in the specified timezone
   DateTime _getCurrentTimeInTimezone(String timezone) {
     final now = DateTime.now().toUtc();
-    final offset = _getTimezoneOffset(timezone);
-    return now.add(Duration(hours: offset));
+    final offsetHours = _getTimezoneOffset(timezone);
+    return now.add(Duration(minutes: (offsetHours * 60).round()));
   }
 
-  /// Get UTC offset for a timezone (in hours)
-  int _getTimezoneOffset(String timezone) {
-    // Common timezone mappings (standard time, DST not handled)
+  /// Get UTC offset for a timezone (in hours, can be fractional)
+  double _getTimezoneOffset(String timezone) {
+    // Handle simple offset strings like "+8", "-5", "8", etc.
+    final simpleOffsetRegex = RegExp(r'^([+-]?)(\d+)$');
+    final simpleMatch = simpleOffsetRegex.firstMatch(timezone);
+    if (simpleMatch != null) {
+      final sign = (simpleMatch.group(1) == '-') ? -1 : 1;
+      final hours = int.parse(simpleMatch.group(2)!);
+      print(
+        'Timezone $timezone -> ${sign * hours} (parsed from simple offset)',
+      );
+      return sign * hours.toDouble();
+    }
+
+    // Handle direct UTC offset strings like "UTC+8", "UTC+5:30", "+08:00", etc.
+    final utcOffsetRegex = RegExp(r'UTC([+-])(\d+)(?::(\d+))?');
+    final match = utcOffsetRegex.firstMatch(timezone);
+    if (match != null) {
+      final sign = match.group(1) == '+' ? 1 : -1;
+      final hours = int.parse(match.group(2)!);
+      final minutes = match.group(3) != null ? int.parse(match.group(3)!) : 0;
+      final offset = hours + (minutes / 60.0);
+      print('Timezone $timezone -> ${sign * offset} (parsed from UTC string)');
+      return sign * offset;
+    }
+
+    // Handle offset strings like "+08:00", "-05:30", etc.
+    final offsetRegex = RegExp(r'^([+-])(\d+):(\d+)$');
+    final offsetMatch = offsetRegex.firstMatch(timezone);
+    if (offsetMatch != null) {
+      final sign = offsetMatch.group(1) == '+' ? 1 : -1;
+      final hours = int.parse(offsetMatch.group(2)!);
+      final minutes = int.parse(offsetMatch.group(3)!);
+      final offset = hours + (minutes / 60.0);
+      print(
+        'Timezone $timezone -> ${sign * offset} (parsed from offset string)',
+      );
+      return sign * offset;
+    }
+
+    // Common timezone mappings with DST handling
     switch (timezone.toLowerCase()) {
       case 'america/new_york':
       case 'us/eastern':
-        return -5; // EST
+        print(
+          'Timezone $timezone -> ${_isDST() ? -4 : -5} (${_isDST() ? "EDT" : "EST"})',
+        );
+        return _isDST() ? -4 : -5; // EST/EDT
       case 'america/chicago':
       case 'us/central':
-        return -6; // CST
+        print(
+          'Timezone $timezone -> ${_isDST() ? -5 : -6} (${_isDST() ? "CDT" : "CST"})',
+        );
+        return _isDST() ? -5 : -6; // CST/CDT
       case 'america/denver':
       case 'us/mountain':
-        return -7; // MST
+        print(
+          'Timezone $timezone -> ${_isDST() ? -6 : -7} (${_isDST() ? "MDT" : "MST"})',
+        );
+        return _isDST() ? -6 : -7; // MST/MDT
       case 'america/los_angeles':
       case 'us/pacific':
-        return -8; // PST
+        print(
+          'Timezone $timezone -> ${_isDST() ? -7 : -8} (${_isDST() ? "PDT" : "PST"})',
+        );
+        return _isDST() ? -7 : -8; // PST/PDT
       case 'europe/london':
       case 'gb':
       case 'gmt':
-        return 0; // GMT/BST
+        print(
+          'Timezone $timezone -> ${_isDST() ? 1 : 0} (${_isDST() ? "BST" : "GMT"})',
+        );
+        return _isDST() ? 1 : 0; // GMT/BST
       case 'europe/berlin':
       case 'europe/paris':
       case 'europe/rome':
       case 'cet':
-        return 1; // CET/CEST
+        print(
+          'Timezone $timezone -> ${_isDST() ? 2 : 1} (${_isDST() ? "CEST" : "CET"})',
+        );
+        return _isDST() ? 2 : 1; // CET/CEST
       case 'asia/tokyo':
       case 'jst':
+        print('Timezone $timezone -> 9 (JST)');
         return 9; // JST
       case 'asia/shanghai':
       case 'asia/hong_kong':
+      case 'hong_kong':
       case 'hkt':
+      case 'hk':
       case 'cst':
+      case '8':
+        print('Timezone $timezone -> 8 (CST/HKT)');
         return 8; // CST/HKT
       case 'asia/mumbai':
+      case 'asia/kolkata':
       case 'ist':
-        return 5; // IST
+        print('Timezone $timezone -> 5.5 (IST)');
+        return 5.5; // IST (UTC+5:30)
       default:
+        print('Timezone $timezone -> 0 (default UTC)');
         return 0; // Default to UTC
     }
   }
 
-  /// Check if market is currently open based on timezone
-  bool _isMarketCurrentlyOpen(MarketHours market) {
-    try {
-      // Get current time in the market's time zone
-      final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
-      final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
-
-      // Parse opening and closing times
-      final openingParts = market.openingHour.split(':');
-      final closingParts = market.closingHour.split(':');
-
-      if (openingParts.length >= 2 && closingParts.length >= 2) {
-        final openingHour = int.tryParse(openingParts[0]) ?? 9;
-        final openingMinute = int.tryParse(openingParts[1]) ?? 30;
-        final closingHour = int.tryParse(closingParts[0]) ?? 16;
-        final closingMinute = int.tryParse(closingParts[1]) ?? 0;
-
-        final openingTime = TimeOfDay(hour: openingHour, minute: openingMinute);
-        final closingTime = TimeOfDay(hour: closingHour, minute: closingMinute);
-
-        return _isMarketOpenInTimezone(currentTime, openingTime, closingTime);
-      }
-    } catch (e) {
-      // Fallback to API data
-    }
-    return market.isMarketOpen;
-  }
-
-  /// Check if market is open based on current time in market's timezone
-  bool _isMarketOpenInTimezone(
-    TimeOfDay current,
-    TimeOfDay open,
-    TimeOfDay close,
-  ) {
-    final currentMinutes = current.hour * 60 + current.minute;
-    final openMinutes = open.hour * 60 + open.minute;
-    final closeMinutes = close.hour * 60 + close.minute;
-
-    return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
-  }
-
-  Widget _buildMarketHoursCard(ThemeData theme, MarketHours market) {
-    final isCurrentlyOpen = _isMarketCurrentlyOpen(market);
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isCurrentlyOpen
-                ? Colors.green.shade700
-                : Colors.grey.shade400,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            // Market status indicator
-            Icon(
-              isCurrentlyOpen ? Icons.wb_sunny : Icons.nightlight_round,
-              size: 16,
-              color: isCurrentlyOpen ? Colors.lightGreen : Colors.grey,
-            ),
-            const SizedBox(width: 12),
-
-            // Market info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    market.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _getMarketTimeStatus(market),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  Text(
-                    market.timezone,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Exchange code
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                market.exchange,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 10,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  /// Check if currently in Daylight Saving Time (simplified for US/Europe)
+  bool _isDST() {
+    // DST ended in October 2024, so November 2025 is standard time
+    return false;
   }
 
   /// Build the commodities section at the top with gold, silver, and oil
@@ -1192,7 +1186,10 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.expand_more),
               label: const Text('Load More Stocks'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -1325,12 +1322,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _allAvailableStocks = allStockLosses;
 
       // Take the requested range
-      final topLosers = allStockLosses
-          .skip(offset)
-          .take(limit)
-          .toList();
+      final topLosers = allStockLosses.skip(offset).take(limit).toList();
 
-      print('DEBUG: Successfully loaded ${topLosers.length} top losing stocks (offset: $offset, limit: $limit, total available: ${allStockLosses.length})');
+      print(
+        'DEBUG: Successfully loaded ${topLosers.length} top losing stocks (offset: $offset, limit: $limit, total available: ${allStockLosses.length})',
+      );
 
       setState(() {
         if (offset == 0) {
@@ -1357,7 +1353,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadMoreStocks() async {
-    if (_isLoadingMore || !_hasMoreStocks || _allAvailableStocks.isEmpty) return;
+    if (_isLoadingMore || !_hasMoreStocks || _allAvailableStocks.isEmpty)
+      return;
 
     setState(() {
       _isLoadingMore = true;
@@ -1452,8 +1449,8 @@ class _HomeScreenState extends State<HomeScreen> {
           .map((item) => MarketHours.fromJson(item))
           .toList();
 
-      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, HKSE, LSE
-      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'HKSE', 'LSE'];
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, SSE, LSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'SSE', 'LSE'];
       final filteredMarketHours = allMarketHours
           .where((market) => targetExchanges.contains(market.exchange))
           .toList();
@@ -1469,7 +1466,7 @@ class _HomeScreenState extends State<HomeScreen> {
           'LSE': 4,
           // Asia
           'NSE': 5,
-          'HKSE': 6,
+          'SSE': 6,
         };
 
         final aOrder = regionOrder[a.exchange] ?? 99;
@@ -1491,6 +1488,209 @@ class _HomeScreenState extends State<HomeScreen> {
         _isLoadingMarketHours = false;
       });
     }
+  }
+
+  /// Get formatted current time in market timezone
+  String _getCurrentTimeInMarket(MarketHours market) {
+    try {
+      final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
+      final hour = nowInMarketTimezone.hour;
+      final minute = nowInMarketTimezone.minute;
+      return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '--:--';
+    }
+  }
+
+  /// Parse time string in various formats: "HH:MM AM/PM +OFFSET", "HH:MM AM/PM -OFFSET", or "HH:MM"
+  TimeOfDay _parseTimeString(String timeString) {
+    try {
+      // Remove any timezone offset part like "+01:00" or "-05:00"
+      final cleanTimeString = timeString.split(' ').take(2).join(' ');
+
+      // Handle format like "09:00 AM" or "05:30 PM"
+      final parts = cleanTimeString.split(' ');
+      if (parts.length >= 2) {
+        final timePart = parts[0]; // "09:00" or "05:30"
+        final amPm = parts[1]; // "AM" or "PM"
+
+        final timeParts = timePart.split(':');
+        if (timeParts.length >= 2) {
+          int hour = int.tryParse(timeParts[0]) ?? 9;
+          final minute = int.tryParse(timeParts[1]) ?? 0;
+
+          // Convert to 24-hour format
+          if (amPm.toUpperCase() == 'PM' && hour != 12) {
+            hour += 12;
+          } else if (amPm.toUpperCase() == 'AM' && hour == 12) {
+            hour = 0;
+          }
+
+          return TimeOfDay(hour: hour, minute: minute);
+        }
+      }
+
+      // Fallback: try to parse as "HH:MM" (24-hour format)
+      final timeParts = timeString.split(':');
+      if (timeParts.length >= 2) {
+        final hour = int.tryParse(timeParts[0]) ?? 9;
+        final minute = int.tryParse(timeParts[1]) ?? 0;
+        return TimeOfDay(hour: hour, minute: minute);
+      }
+    } catch (e) {
+      print('Error parsing time string "$timeString": $e');
+    }
+
+    // Default fallback
+    return TimeOfDay(hour: 9, minute: 30);
+  }
+
+  /// Check if market is currently open based on timezone
+  bool _isMarketCurrentlyOpen(MarketHours market) {
+    // Check if it's a weekend in the market's timezone
+    final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
+    final weekday = nowInMarketTimezone.weekday; // 1 = Monday, 7 = Sunday
+
+    // Check if it's Friday after market close or weekend
+    if (weekday == 5) {
+      // Friday
+      // Check if current time is after closing time
+      final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
+      final closingTime = _parseTimeString(market.closingHour);
+      if (_isTimeAfter(currentTime, closingTime)) {
+        return false;
+      }
+    } else if (weekday == 6 || weekday == 7) {
+      // Saturday or Sunday
+      return false;
+    }
+
+    // Always prioritize API's isMarketOpen field - it knows about holidays too
+    if (!market.isMarketOpen) {
+      return false;
+    }
+
+    try {
+      // Get current time in the market's time zone
+      final nowInMarketTimezone = _getCurrentTimeInTimezone(market.timezone);
+      final currentTime = TimeOfDay.fromDateTime(nowInMarketTimezone);
+
+      // Parse opening and closing times using the new parser
+      final openingTime = _parseTimeString(market.openingHour);
+      final closingTime = _parseTimeString(market.closingHour);
+
+      return _isMarketOpenInTimezone(currentTime, openingTime, closingTime);
+    } catch (e) {
+      // If parsing fails, fall back to API data
+      return market.isMarketOpen;
+    }
+  }
+
+  /// Check if market is open based on current time in market's timezone
+  bool _isMarketOpenInTimezone(
+    TimeOfDay current,
+    TimeOfDay open,
+    TimeOfDay close,
+  ) {
+    final currentMinutes = current.hour * 60 + current.minute;
+    final openMinutes = open.hour * 60 + open.minute;
+    final closeMinutes = close.hour * 60 + close.minute;
+
+    return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+  }
+
+  Widget _buildMarketHoursCard(ThemeData theme, MarketHours market) {
+    final isCurrentlyOpen = _isMarketCurrentlyOpen(market);
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isCurrentlyOpen ? Colors.green : Colors.grey.shade400,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Market status indicator
+            Icon(
+              isCurrentlyOpen ? Icons.wb_sunny : Icons.nightlight_round,
+              size: 16,
+              color: isCurrentlyOpen ? Colors.green : Colors.grey,
+            ),
+            const SizedBox(width: 12),
+
+            // Market info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        market.name,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _getMarketTimeStatus(market),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Text(
+                        market.timezone,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _getCurrentTimeInMarket(market),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Exchange code
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                market.exchange,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

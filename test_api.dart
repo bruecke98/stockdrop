@@ -11,11 +11,11 @@ void main() async {
     return;
   }
 
-  print('Testing stock-screener API endpoint...');
+  print('Testing market hours API endpoint...');
 
-  // Test stock-screener endpoint
+  // Test market hours endpoint
   final url = Uri.parse(
-    'https://financialmodelingprep.com/api/v3/stock-screener?sector=Technology&limit=2&apikey=$apiKey',
+    'https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=$apiKey',
   );
   print('URL: $url');
 
@@ -26,8 +26,25 @@ void main() async {
       final data = json.decode(response.body);
       print('Data type: ${data.runtimeType}');
       if (data is List && data.isNotEmpty) {
-        print('First item keys: ${data[0].keys.toList()}');
-        print('First item: ${data[0]}');
+        print('Number of exchanges: ${data.length}');
+        // Find NYSE
+        final nyse = data.firstWhere(
+          (item) => item['exchange'] == 'NYSE',
+          orElse: () => null,
+        );
+        if (nyse != null) {
+          print('NYSE data: $nyse');
+        } else {
+          print('NYSE not found');
+          print('First few exchanges:');
+          for (var i = 0; i < min(5, data.length); i++) {
+            print(
+              '  ${data[i]['exchange']}: ${data[i]['name']} - ${data[i]['timezone']}',
+            );
+          }
+        }
+      } else {
+        print('Response: ${response.body}');
       }
     } else {
       print('Response: ${response.body}');
@@ -36,3 +53,5 @@ void main() async {
     print('Error: $e');
   }
 }
+
+int min(int a, int b) => a < b ? a : b;

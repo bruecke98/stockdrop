@@ -286,7 +286,8 @@ class EnhancedStockCard extends StatelessWidget {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                      color: colorScheme.surfaceContainerHighest
+                                          .withOpacity(0.5),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
                                         color: colorScheme.outline,
