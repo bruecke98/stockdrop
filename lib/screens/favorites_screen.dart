@@ -483,6 +483,12 @@ class FavoriteStock implements StockData {
   @override
   double? get lastAnnualDividend => _lastAnnualDividend;
 
+  @override
+  double? get yearHigh => _yearHigh;
+
+  @override
+  double? get yearLow => _yearLow;
+
   final String _symbol;
   final String _name;
   final double _price;
@@ -493,6 +499,8 @@ class FavoriteStock implements StockData {
   final String? _exchangeShortName;
   final String? _country;
   final double? _lastAnnualDividend;
+  final double? _yearHigh;
+  final double? _yearLow;
 
   FavoriteStock({
     required String symbol,
@@ -505,6 +513,8 @@ class FavoriteStock implements StockData {
     double? marketCap,
     String? country,
     double? lastAnnualDividend,
+    double? yearHigh,
+    double? yearLow,
   }) : _symbol = symbol,
        _name = name,
        _price = price ?? 0.0,
@@ -514,7 +524,9 @@ class FavoriteStock implements StockData {
        _marketCap = marketCap,
        _exchangeShortName = exchangeShortName,
        _country = country,
-       _lastAnnualDividend = lastAnnualDividend;
+       _lastAnnualDividend = lastAnnualDividend,
+       _yearHigh = yearHigh,
+       _yearLow = yearLow;
 
   factory FavoriteStock.fromJson(
     Map<String, dynamic> quoteJson, [
@@ -546,6 +558,9 @@ class FavoriteStock implements StockData {
         : (quoteJson['lastAnnualDividend'] as num?)?.toDouble() ??
               (quoteJson['lastDividend'] as num?)?.toDouble();
 
+    final yearHigh = (quoteJson['yearHigh'] as num?)?.toDouble();
+    final yearLow = (quoteJson['yearLow'] as num?)?.toDouble();
+
     return FavoriteStock(
       symbol: quoteJson['symbol']?.toString() ?? '',
       name: quoteJson['name']?.toString() ?? '',
@@ -557,6 +572,8 @@ class FavoriteStock implements StockData {
       sector: sector,
       marketCap: marketCap,
       lastAnnualDividend: lastAnnualDividend,
+      yearHigh: yearHigh,
+      yearLow: yearLow,
     );
   }
 }

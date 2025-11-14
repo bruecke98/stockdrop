@@ -19,6 +19,8 @@ abstract class StockData {
   String? get exchangeShortName;
   String? get country;
   double? get lastAnnualDividend;
+  double? get yearHigh;
+  double? get yearLow;
 }
 
 /// Enhanced stock card widget that supports multiple stock model types
@@ -305,6 +307,12 @@ class EnhancedStockCard extends StatelessWidget {
                                     ),
                                   ),
                                 ],
+                                // 52-Week Range badge
+                                if (stock.yearHigh != null &&
+                                    stock.yearLow != null) ...[
+                                  const SizedBox(height: 4),
+                                  _buildWeekRangeBadge(theme, colorScheme),
+                                ],
                               ],
                             ),
                           ],
@@ -563,6 +571,79 @@ class EnhancedStockCard extends StatelessWidget {
 
     return marketHour.isMarketOpen;
   }
+
+  Widget _buildWeekRangeBadge(ThemeData theme, ColorScheme colorScheme) {
+    // Calculate position as percentage (0.0 to 1.0)
+    double position = 0.5; // Default to middle if calculation fails
+    if (stock.yearHigh != null &&
+        stock.yearLow != null &&
+        stock.yearHigh! > stock.yearLow!) {
+      position =
+          ((stock.price - stock.yearLow!) / (stock.yearHigh! - stock.yearLow!))
+              .clamp(0.0, 1.0);
+    }
+
+    // Determine color based on position
+    Color indicatorColor;
+    if (position < 0.33) {
+      indicatorColor = Colors.red;
+    } else if (position < 0.67) {
+      indicatorColor = Colors.orange;
+    } else {
+      indicatorColor = Colors.green;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: indicatorColor, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Mini progress bar
+          Container(
+            width: 20,
+            height: 4,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(2),
+              gradient: const LinearGradient(
+                colors: [Colors.red, Colors.orange, Colors.green],
+                stops: [0.0, 0.5, 1.0],
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: (position * 16) - 1, // Adjust for dot size
+                  top: -1,
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: indicatorColor, width: 1),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '52W',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: indicatorColor,
+              fontWeight: FontWeight.bold,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Adapter classes to make existing models implement StockData interface
@@ -602,6 +683,12 @@ class StockLossAdapter implements StockData {
 
   @override
   double? get lastAnnualDividend => stock.lastAnnualDividend;
+
+  @override
+  double? get yearHigh => stock.yearHigh;
+
+  @override
+  double? get yearLow => stock.yearLow;
 }
 
 /// Adapter for FilteredStock model
@@ -639,6 +726,12 @@ class FilteredStockAdapter implements StockData {
 
   @override
   double? get lastAnnualDividend => null; // Not available in FilteredStock
+
+  @override
+  double? get yearHigh => stock.yearHigh;
+
+  @override
+  double? get yearLow => stock.yearLow;
 }
 
 /// Adapter for Stock model
@@ -676,6 +769,12 @@ class StockAdapter implements StockData {
 
   @override
   double? get lastAnnualDividend => stock.lastAnnualDividend;
+
+  @override
+  double? get yearHigh => stock.yearHigh;
+
+  @override
+  double? get yearLow => stock.yearLow;
 }
 
 /// Adapter for StockSearchResult model
@@ -713,4 +812,10 @@ class StockSearchResultAdapter implements StockData {
 
   @override
   double? get lastAnnualDividend => null; // Not available in StockSearchResult
+
+  @override
+  double? get yearHigh => stock.yearHigh;
+
+  @override
+  double? get yearLow => stock.yearLow;
 }

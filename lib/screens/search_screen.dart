@@ -562,6 +562,8 @@ class StockSearchResult {
   final String? sector;
   final double? marketCap;
   final String? country;
+  final double? yearHigh;
+  final double? yearLow;
 
   StockSearchResult({
     required this.symbol,
@@ -573,6 +575,8 @@ class StockSearchResult {
     this.sector,
     this.marketCap,
     this.country,
+    this.yearHigh,
+    this.yearLow,
   });
 
   factory StockSearchResult.fromJson(
@@ -607,6 +611,14 @@ class StockSearchResult {
         ? profileJson['country'] as String?
         : null;
 
+    final yearHigh = quoteJson != null
+        ? (quoteJson['yearHigh'] as num?)?.toDouble()
+        : null;
+
+    final yearLow = quoteJson != null
+        ? (quoteJson['yearLow'] as num?)?.toDouble()
+        : null;
+
     return StockSearchResult(
       symbol: searchJson['symbol']?.toString() ?? '',
       name: searchJson['name']?.toString() ?? '',
@@ -617,6 +629,8 @@ class StockSearchResult {
       sector: sector,
       marketCap: marketCap,
       country: country,
+      yearHigh: yearHigh,
+      yearLow: yearLow,
     );
   }
 }

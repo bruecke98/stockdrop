@@ -1707,6 +1707,8 @@ class StockLoss {
   final String? exchange;
   final String? country;
   final double? lastAnnualDividend;
+  final double? yearHigh;
+  final double? yearLow;
 
   StockLoss({
     required this.symbol,
@@ -1720,6 +1722,8 @@ class StockLoss {
     this.exchange,
     this.country,
     this.lastAnnualDividend,
+    this.yearHigh,
+    this.yearLow,
   });
 
   factory StockLoss.fromJson(Map<String, dynamic> json) {
@@ -1735,6 +1739,8 @@ class StockLoss {
       exchange: json['exchange']?.toString(),
       country: json['country']?.toString(),
       lastAnnualDividend: (json['lastAnnualDividend'] as num?)?.toDouble(),
+      yearHigh: (json['yearHigh'] as num?)?.toDouble(),
+      yearLow: (json['yearLow'] as num?)?.toDouble(),
     );
   }
 }
