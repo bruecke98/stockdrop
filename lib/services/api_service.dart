@@ -389,6 +389,55 @@ class ApiService {
     }
   }
 
+  /// Get stock peers for comparison
+  Future<List<Stock>> getStockPeers(String symbol) async {
+    try {
+      if (symbol.trim().isEmpty) {
+        throw ApiException('Stock symbol cannot be empty', 400, '');
+      }
+
+      final cleanSymbol = symbol.trim().toUpperCase();
+      debugPrint('🔗 Fetching peers for: $cleanSymbol');
+
+      final url = Uri.parse(
+        'https://financialmodelingprep.com/stable/stock-peers?symbol=$cleanSymbol&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode != 200) {
+        debugPrint('⚠️ Peers not available for $cleanSymbol');
+        return [];
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ No peers data for $cleanSymbol');
+        return [];
+      }
+
+      // The API returns a list of peer objects with symbol, companyName, price, mktCap
+      final peers = <Stock>[];
+      for (final peerJson in data) {
+        final symbol = peerJson['symbol']?.toString();
+        if (symbol != null && symbol != cleanSymbol) {
+          // Fetch full stock data for each peer
+          final stock = await _getStockQuote(symbol);
+          if (stock != null) {
+            peers.add(stock);
+          }
+        }
+      }
+
+      debugPrint('🔗 Loaded ${peers.length} peers for $cleanSymbol');
+      return peers;
+    } catch (e) {
+      debugPrint('❌ Error fetching peers for $symbol: $e');
+      return [];
+    }
+  }
+
   // ==================== STOCK DETAILS METHODS ====================
 
   /// Get comprehensive stock details
