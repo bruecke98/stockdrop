@@ -409,17 +409,21 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
   }
 
   void _showWinnerDetails(Stock winner, Map<String, dynamic> details) {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         elevation: 8,
-        backgroundColor: Colors.white,
+        backgroundColor: theme.colorScheme.surface,
         title: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.green.shade400, Colors.green.shade600],
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.primary.withOpacity(0.8),
+              ],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -427,15 +431,18 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
           ),
           child: Row(
             children: [
-              const Icon(Icons.emoji_events, color: Colors.amber, size: 32),
+              Icon(
+                Icons.emoji_events,
+                color: theme.colorScheme.onPrimary,
+                size: 32,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   '${winner.name} Wins!',
-                  style: const TextStyle(
-                    fontSize: 22,
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: theme.colorScheme.onPrimary,
                   ),
                 ),
               ),
@@ -451,23 +458,26 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: theme.colorScheme.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                  ),
                 ),
                 child: Column(
                   children: [
                     Text(
                       '${details['score'].toStringAsFixed(1)}/100',
-                      style: const TextStyle(
-                        fontSize: 32,
+                      style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
-                        color: Colors.green,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
-                    const Text(
+                    Text(
                       'Overall Score',
-                      style: TextStyle(fontSize: 14, color: Colors.green),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -480,17 +490,21 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 8),
-              _buildScoreBreakdown('Valuation', details['valuationScore'] ?? 0),
               _buildScoreBreakdown(
-                'Profitability',
+                'Valuation (25%)',
+                details['valuationScore'] ?? 0,
+              ),
+              _buildScoreBreakdown('Growth (20%)', details['growthScore'] ?? 0),
+              _buildScoreBreakdown(
+                'Profitability (25%)',
                 details['profitabilityScore'] ?? 0,
               ),
               _buildScoreBreakdown(
-                'Financial Health',
+                'Financial Health (20%)',
                 details['financialHealthScore'] ?? 0,
               ),
               _buildScoreBreakdown(
-                'Analyst Sentiment',
+                'Analyst Sentiment (10%)',
                 details['analystScore'] ?? 0,
               ),
 
@@ -536,7 +550,7 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
                 'Based on ${details['metricsCount']} financial metrics',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
+                  color: theme.colorScheme.onSurfaceVariant,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -567,31 +581,42 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
   }
 
   Widget _buildScoreBreakdown(String label, double score) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
           SizedBox(
-            width: 120,
-            child: Text(label, style: const TextStyle(fontSize: 14)),
+            width: 140,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
           ),
           Expanded(
             child: LinearProgressIndicator(
               value: score / 25, // Assuming max score of 25 per category
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: theme.colorScheme.surfaceVariant,
               valueColor: AlwaysStoppedAnimation<Color>(
                 score > 15
-                    ? Colors.green
+                    ? Colors.green.shade600
                     : score > 10
-                    ? Colors.orange
-                    : Colors.red,
+                    ? Colors.orange.shade600
+                    : Colors.red.shade600,
               ),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             score.toStringAsFixed(1),
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
         ],
       ),
@@ -599,15 +624,23 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
   }
 
   Widget _buildMetricRow(String label, String value) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 14)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurface),
+          ),
           Text(
             value,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
         ],
       ),
@@ -771,7 +804,7 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
       children: [
         // Selected stocks display
         Container(
-          height: 120,
+          height: 225,
           padding: const EdgeInsets.all(16),
           child: _selectedStocks.isEmpty
               ? const Center(child: Text('No stocks selected'))
@@ -961,102 +994,158 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
     bool isWinner,
     Map<String, dynamic> data,
   ) {
-    return Container(
-      width: 160,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isWinner ? Colors.green.shade50 : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isWinner ? Colors.green.shade300 : Colors.grey.shade300,
-          width: isWinner ? 2 : 1,
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Container(
+        width: 160,
+        height: 200, // Increased height for delete button
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isWinner
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withOpacity(0.2),
+            width: isWinner ? 2 : 1,
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Company Logo and Symbol
-          Container(
-            width: 48,
-            height: 48,
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Image.network(
-              'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.business, size: 32),
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                );
-              },
-            ),
-          ),
+        child: Stack(
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Company Logo and Symbol
+                Container(
+                  width: 48,
+                  height: 48,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.network(
+                      'https://images.financialmodelingprep.com/symbol/${stock.symbol}.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: theme.colorScheme.primary.withOpacity(0.1),
+                          child: Icon(
+                            Icons.business,
+                            color: theme.colorScheme.primary,
+                            size: 24,
+                          ),
+                        );
+                      },
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      },
+                    ),
+                  ),
+                ),
 
-          // Symbol and Name
-          Text(
-            stock.symbol,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: isWinner ? Colors.green.shade800 : Colors.black,
-            ),
-          ),
-          Text(
-            stock.name,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
+                // Symbol and Name
+                Text(
+                  stock.symbol,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  stock.name,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
 
-          const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-          // Score Display
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: isWinner ? Colors.green.shade100 : Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${score.toStringAsFixed(1)}/100',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: isWinner ? Colors.green.shade800 : Colors.blue.shade800,
-              ),
-            ),
-          ),
+                // Score Display
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isWinner
+                        ? theme.colorScheme.primary.withOpacity(0.1)
+                        : theme.colorScheme.secondary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isWinner
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.secondary,
+                      width: 1,
+                    ),
+                  ),
+                  child: Text(
+                    '${score.toStringAsFixed(1)}/100',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: isWinner
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.secondary,
+                    ),
+                  ),
+                ),
 
-          if (isWinner) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.green.shade600,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'WINNER',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                if (isWinner) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'WINNER',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+
+            // Delete button in top-right corner
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: Icon(
+                  Icons.close,
+                  size: 20,
+                  color: theme.colorScheme.error,
+                ),
+                onPressed: () => _removeStockFromComparison(stock),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.error.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1268,11 +1357,16 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
           ),
           const SizedBox(height: 8),
           Container(
-            height: 300,
+            height: 400, // Increased height to prevent cutoff
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceVariant.withOpacity(0.3),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+              ),
             ),
             child: _buildMarketCapBubbleChart(),
           ),
@@ -1281,7 +1375,7 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
 
           // Comprehensive Data Table
           const Text(
-            'Comprehensive Financial Metrics',
+            'Comprehensive Financial Metrics & Score Breakdown',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 10),
@@ -1290,7 +1384,12 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
             child: DataTable(
               columns: const [
                 DataColumn(label: Text('Company')),
-                DataColumn(label: Text('Score')),
+                DataColumn(label: Text('Total\nScore')),
+                DataColumn(label: Text('Valuation\n(25%)')),
+                DataColumn(label: Text('Growth\n(20%)')),
+                DataColumn(label: Text('Profitability\n(25%)')),
+                DataColumn(label: Text('Financial\nHealth (20%)')),
+                DataColumn(label: Text('Analyst\nSentiment (10%)')),
                 DataColumn(label: Text('P/E')),
                 DataColumn(label: Text('P/B')),
                 DataColumn(label: Text('P/S')),
@@ -1306,9 +1405,14 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
               ],
               rows: _comparisonData.map((data) {
                 final stock = data['stock'] as Stock;
+                final isWinner = _winner?.symbol == stock.symbol;
                 return DataRow(
-                  color: _winner?.symbol == stock.symbol
-                      ? MaterialStateProperty.all(Colors.green.shade50)
+                  color: isWinner
+                      ? MaterialStateProperty.all(
+                          Theme.of(
+                            context,
+                          ).colorScheme.primary.withOpacity(0.1),
+                        )
                       : null,
                   cells: [
                     DataCell(
@@ -1360,7 +1464,130 @@ class _StockComparisonScreenState extends State<StockComparisonScreen>
                         ],
                       ),
                     ),
-                    DataCell(Text(data['score'].toStringAsFixed(1))),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isWinner
+                              ? Theme.of(
+                                  context,
+                                ).colorScheme.primary.withOpacity(0.1)
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.secondary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isWinner
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.secondary,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          data['score'].toStringAsFixed(1),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isWinner
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.secondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        data['valuationScore'] != null
+                            ? '${data['valuationScore'].toStringAsFixed(1)} pts'
+                            : 'N/A',
+                        style: TextStyle(
+                          color:
+                              data['valuationScore'] != null &&
+                                  data['valuationScore'] > 15
+                              ? Colors.green.shade700
+                              : data['valuationScore'] != null &&
+                                    data['valuationScore'] > 10
+                              ? Colors.orange.shade700
+                              : Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        data['growthScore'] != null
+                            ? '${data['growthScore'].toStringAsFixed(1)} pts'
+                            : 'N/A',
+                        style: TextStyle(
+                          color:
+                              data['growthScore'] != null &&
+                                  data['growthScore'] > 8
+                              ? Colors.green.shade700
+                              : data['growthScore'] != null &&
+                                    data['growthScore'] > 5
+                              ? Colors.orange.shade700
+                              : Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        data['profitabilityScore'] != null
+                            ? '${data['profitabilityScore'].toStringAsFixed(1)} pts'
+                            : 'N/A',
+                        style: TextStyle(
+                          color:
+                              data['profitabilityScore'] != null &&
+                                  data['profitabilityScore'] > 15
+                              ? Colors.green.shade700
+                              : data['profitabilityScore'] != null &&
+                                    data['profitabilityScore'] > 10
+                              ? Colors.orange.shade700
+                              : Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        data['financialHealthScore'] != null
+                            ? '${data['financialHealthScore'].toStringAsFixed(1)} pts'
+                            : 'N/A',
+                        style: TextStyle(
+                          color:
+                              data['financialHealthScore'] != null &&
+                                  data['financialHealthScore'] > 8
+                              ? Colors.green.shade700
+                              : data['financialHealthScore'] != null &&
+                                    data['financialHealthScore'] > 5
+                              ? Colors.orange.shade700
+                              : Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Text(
+                        data['analystScore'] != null
+                            ? '${data['analystScore'].toStringAsFixed(1)} pts'
+                            : 'N/A',
+                        style: TextStyle(
+                          color:
+                              data['analystScore'] != null &&
+                                  data['analystScore'] > 5
+                              ? Colors.green.shade700
+                              : data['analystScore'] != null &&
+                                    data['analystScore'] > 2
+                              ? Colors.orange.shade700
+                              : Colors.red.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
                     DataCell(
                       Text(data['peRatio']?.toStringAsFixed(1) ?? 'N/A'),
                     ),
