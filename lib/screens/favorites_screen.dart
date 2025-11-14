@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/enhanced_stock_card.dart';
+import '../models/market_hours.dart';
 
 /// Favorites screen for StockDrop app
 /// Displays user's favorited stocks with real-time updates from Supabase
@@ -22,11 +23,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   StreamSubscription<List<Map<String, dynamic>>>? _favoritesSubscription;
   Timer? _priceUpdateTimer;
 
+  // Market hours data
+  List<MarketHours> _marketHours = [];
+  bool _isLoadingMarketHours = true;
+
   @override
   void initState() {
     super.initState();
     _setupFavoritesStream();
     _startPriceUpdateTimer();
+    _fetchMarketHours();
   }
 
   @override
@@ -89,6 +95,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             children: [
               EnhancedStockCard(
                 stock: stock,
+                marketHours: _marketHours,
                 onTap: () {
                   Navigator.pushNamed(
                     context,
@@ -385,6 +392,71 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       ),
     );
   }
+
+  Future<void> _fetchMarketHours() async {
+    setState(() {
+      _isLoadingMarketHours = true;
+    });
+
+    try {
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        throw Exception('FMP API key not found in environment variables');
+      }
+
+      final url =
+          'https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch market hours: ${response.statusCode}');
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      final allMarketHours = data
+          .map((item) => MarketHours.fromJson(item))
+          .toList();
+
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, SSE, LSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'SSE', 'LSE'];
+      final filteredMarketHours = allMarketHours
+          .where((market) => targetExchanges.contains(market.exchange))
+          .toList();
+
+      // Sort by region: Americas, Europe, Asia
+      filteredMarketHours.sort((a, b) {
+        final regionOrder = {
+          // Americas
+          'NYSE': 1,
+          'NASDAQ': 2,
+          // Europe
+          'XETRA': 3,
+          'LSE': 4,
+          // Asia
+          'NSE': 5,
+          'SSE': 6,
+        };
+
+        final aOrder = regionOrder[a.exchange] ?? 99;
+        final bOrder = regionOrder[b.exchange] ?? 99;
+        return aOrder.compareTo(bOrder);
+      });
+
+      setState(() {
+        _marketHours = filteredMarketHours;
+        _isLoadingMarketHours = false;
+      });
+
+      print(
+        'DEBUG: Successfully loaded market hours for ${filteredMarketHours.length} exchanges',
+      );
+    } catch (e) {
+      print('DEBUG: Error fetching market hours: $e');
+      setState(() {
+        _isLoadingMarketHours = false;
+      });
+    }
+  }
 }
 
 /// Model class for favorite stock with market data
@@ -479,7 +551,7 @@ class FavoriteStock implements StockData {
       name: quoteJson['name']?.toString() ?? '',
       price: (quoteJson['price'] as num?)?.toDouble(),
       changesPercentage: (quoteJson['changesPercentage'] as num?)?.toDouble(),
-      exchangeShortName: quoteJson['exchangeShortName']?.toString(),
+      exchangeShortName: quoteJson['exchange']?.toString(),
       beta: beta,
       country: country,
       sector: sector,

@@ -268,11 +268,56 @@ class _DetailScreenState extends State<DetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        stock.symbol,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            stock.symbol,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (stock.exchange != null && !_isLoadingMarketHours)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withOpacity(
+                                  0.1,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: theme.colorScheme.primary,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _isMarketOpen(stock.exchange!)
+                                        ? Icons.wb_sunny
+                                        : Icons.nightlight_round,
+                                    size: 12,
+                                    color: _isMarketOpen(stock.exchange!)
+                                        ? Colors.lightGreen
+                                        : Colors.grey,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _getExchangeAbbreviation(stock.exchange!),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
                       Text(
                         stock.name,
@@ -9517,7 +9562,9 @@ class _DetailScreenState extends State<DetailScreen> {
 
   /// Check if the market is currently open
   bool _isMarketOpen(String exchangeName) {
-    if (_marketHours.isEmpty) return false;
+    if (_marketHours.isEmpty) {
+      return false;
+    }
 
     // Map exchange names to the ones used in market hours API
     String mappedExchange = exchangeName.toUpperCase();
@@ -9548,7 +9595,56 @@ class _DetailScreenState extends State<DetailScreen> {
       ),
     );
 
-    return marketHour.isMarketOpen;
+    if (marketHour.exchange.isEmpty) {
+      return false;
+    }
+
+    // First check API's isMarketOpen (handles holidays)
+    if (!marketHour.isMarketOpen) {
+      return false;
+    }
+
+    // If API says open, do a time-based check as backup
+    try {
+      final now = DateTime.now();
+      final currentTime = TimeOfDay.fromDateTime(now);
+
+      // Parse opening and closing times (assuming EST for US markets)
+      final openingTime = _parseTimeString(marketHour.openingHour);
+      final closingTime = _parseTimeString(marketHour.closingHour);
+
+      final isOpen = _isMarketOpenInTimezone(
+        currentTime,
+        openingTime,
+        closingTime,
+      );
+      return isOpen;
+    } catch (e) {
+      // Fall back to API data if parsing fails
+      return marketHour.isMarketOpen;
+    }
+  }
+
+  /// Parse time string like "09:30" into TimeOfDay
+  TimeOfDay _parseTimeString(String timeStr) {
+    final parts = timeStr.split(':');
+    if (parts.length >= 2) {
+      return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+    }
+    throw FormatException('Invalid time format: $timeStr');
+  }
+
+  /// Check if market is open based on current time
+  bool _isMarketOpenInTimezone(
+    TimeOfDay current,
+    TimeOfDay open,
+    TimeOfDay close,
+  ) {
+    final currentMinutes = current.hour * 60 + current.minute;
+    final openMinutes = open.hour * 60 + open.minute;
+    final closeMinutes = close.hour * 60 + close.minute;
+
+    return currentMinutes >= openMinutes && currentMinutes < closeMinutes;
   }
 
   /// Get abbreviated exchange name

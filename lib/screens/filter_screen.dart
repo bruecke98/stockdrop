@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/enhanced_stock_card.dart';
+import '../models/market_hours.dart';
 
 /// Comprehensive filter screen for stock screening using FMP Company Screener API
 class FilterScreen extends StatefulWidget {
@@ -23,6 +24,10 @@ class _FilterScreenState extends State<FilterScreen> {
   double? _volumeMin;
   double? _volumeMax;
   double? _changeMin; // Percentage change minimum (can be negative for losses)
+
+  // Market hours data
+  List<MarketHours> _marketHours = [];
+  bool _isLoadingMarketHours = true;
   double? _changeMax; // Percentage change maximum
 
   // Fundamentals Filters
@@ -112,6 +117,12 @@ class _FilterScreenState extends State<FilterScreen> {
     'NL',
     'CH',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMarketHours();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -817,6 +828,7 @@ class _FilterScreenState extends State<FilterScreen> {
 
               return EnhancedStockCard(
                 stock: FilteredStockAdapter(stock),
+                marketHours: _marketHours,
                 onTap: () => Navigator.pushNamed(
                   context,
                   '/detail',
@@ -849,6 +861,71 @@ class _FilterScreenState extends State<FilterScreen> {
     } else {
       // <$50M
       return 'Nano Cap';
+    }
+  }
+
+  Future<void> _fetchMarketHours() async {
+    setState(() {
+      _isLoadingMarketHours = true;
+    });
+
+    try {
+      final apiKey = dotenv.env['FMP_API_KEY'];
+      if (apiKey == null || apiKey.isEmpty) {
+        throw Exception('FMP API key not found in environment variables');
+      }
+
+      final url =
+          'https://financialmodelingprep.com/stable/all-exchange-market-hours?apikey=$apiKey';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch market hours: ${response.statusCode}');
+      }
+
+      final List<dynamic> data = json.decode(response.body);
+      final allMarketHours = data
+          .map((item) => MarketHours.fromJson(item))
+          .toList();
+
+      // Filter for the specific exchanges: NYSE, NASDAQ, XETRA, NSE, SSE, LSE
+      final targetExchanges = ['NYSE', 'NASDAQ', 'XETRA', 'NSE', 'SSE', 'LSE'];
+      final filteredMarketHours = allMarketHours
+          .where((market) => targetExchanges.contains(market.exchange))
+          .toList();
+
+      // Sort by region: Americas, Europe, Asia
+      filteredMarketHours.sort((a, b) {
+        final regionOrder = {
+          // Americas
+          'NYSE': 1,
+          'NASDAQ': 2,
+          // Europe
+          'XETRA': 3,
+          'LSE': 4,
+          // Asia
+          'NSE': 5,
+          'SSE': 6,
+        };
+
+        final aOrder = regionOrder[a.exchange] ?? 99;
+        final bOrder = regionOrder[b.exchange] ?? 99;
+        return aOrder.compareTo(bOrder);
+      });
+
+      setState(() {
+        _marketHours = filteredMarketHours;
+        _isLoadingMarketHours = false;
+      });
+
+      print(
+        'DEBUG: Successfully loaded market hours for ${filteredMarketHours.length} exchanges',
+      );
+    } catch (e) {
+      print('DEBUG: Error fetching market hours: $e');
+      setState(() {
+        _isLoadingMarketHours = false;
+      });
     }
   }
 }
